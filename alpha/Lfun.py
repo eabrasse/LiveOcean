@@ -33,7 +33,7 @@ def Lstart(gridname='BLANK', tag='BLANK'):
         Ldir['which_matlab'] = '/Applications/MATLAB_R2016b.app/bin/matlab'
     elif which_home == '/home/eab32': #eab32@fjord
         Ldir['parent'] = '/pmr4/eab32/'
-        Ldir['roms'] = Ldir['parent'] + '/LiveOcean_ROMS/'
+        Ldir['roms'] = Ldir['parent'] + 'LiveOcean_ROMS/'
         Ldir['which_matlab'] = '/usr/local/bin/matlab'
     else:
         print('Trouble filling out environment variables in Ldir')
