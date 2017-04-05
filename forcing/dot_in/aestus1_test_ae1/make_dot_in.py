@@ -71,7 +71,7 @@ lo_dir = '/pmr4/eab32/LiveOcean/'
 loo_dir = '/pmr4/eab32/LiveOcean_output/'
 grid_dir = '/pmr4/eab32/LiveOcean_data/grids/' + Ldir['gridname'] + '/'
 force_dir = loo_dir + gtag + '/' + f_string + '/'
-roms_dir = '/pmr4/eab32/LiveOcean_roms/'
+roms_dir = '/pmr4/eab32/LiveOcean_ROMS/'
 
 roms_name = 'ROMS'
 
