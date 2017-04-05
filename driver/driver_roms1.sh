@@ -16,6 +16,9 @@ if [ $HOME = "/Users/PM5" ] ; then
 elif [ $HOME = "/home/parker" ] ; then
   LO_parent="/fjdata1/parker/LiveOcean"
   R_parent="/pmr1/parker/LiveOcean_roms"
+elif [ $HOME = "/Users/elizabethbrasseale" ]; then
+  LO_parent="/Users/elizabethbrasseale/LiveOcean"
+  R_parent="Users/elizabethbrasseale/LiveOcean_ROMS"
 fi
 . $LO_parent"/driver/common.lib"
 
@@ -102,7 +105,7 @@ do
   # Note that the python code creates an empty f_string directory.
   # Also cd to where the ROMS executable lives.
   cd $LO_parent"/forcing/dot_in/"$gtagex
-  source $HOME"/.bashrc"
+  source $HOME"/.bash_profile"
   if [ $D = $D0 ] && [ $start_type = "new" ] ; then
     python ./make_dot_in.py -g $gridname -t $tag -s $start_type -r $run_type -d $DD -x $ex_name
     cd $R_parent"/makefiles/"$ex_name"_tideramp"
@@ -123,6 +126,8 @@ do
   # the actual ROMS run command
   if [ $HOME = "/Users/PM5" ] ; then # testing
     echo "/cm/shared/local/openmpi-ifort/bin/mpirun -np $np_num -machinefile $hf oceanM $Rf/liveocean.in > $log_file &"
+  elif [ $HOME == "/Users/elizabethbrasseale" ]; then 
+    echo "/cm/shared/cm/shared/local/openmpi-ifort/bin/mpirun -np $np_num -machinefile $hf oceanM $Rf/liveocean.in > $log_file &"
   elif [ $HOME == "/home/parker" ] ; then # the real thing
     /cm/shared/local/openmpi-ifort/bin/mpirun -np $np_num -machinefile $hf oceanM $Rf/liveocean.in > $log_file &
     # Check that ROMS has finished successfully.
