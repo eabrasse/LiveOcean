@@ -16,6 +16,9 @@ if [ $HOME = "/Users/PM5" ] ; then
 elif [ $HOME = "/home/parker" ] ; then
   LO_parent="/fjdata1/parker/LiveOcean"
   R_parent="/pmr1/parker/LiveOcean_roms"
+elif [ $HOME = "/home/eab32" ] ; then
+  LO_parent="/pmr4/eab32/LiveOcean"
+  R_parent="/pmr4/eab32/LiveOcean_ROMS"
 fi
 . $LO_parent"/driver/common.lib"
 
@@ -123,7 +126,7 @@ do
   # the actual ROMS run command
   if [ $HOME = "/Users/PM5" ] ; then # testing
     echo "/cm/shared/local/openmpi-ifort/bin/mpirun -np $np_num -machinefile $hf oceanM $Rf/liveocean.in > $log_file &"
-  elif [ $HOME == "/home/parker" ] ; then # the real thing
+  elif [ $HOME == "/home/eab32" ] ; then # the real thing
     /cm/shared/local/openmpi-ifort/bin/mpirun -np $np_num -machinefile $hf oceanM $Rf/liveocean.in > $log_file &
     # Check that ROMS has finished successfully.
     PID1=$!
