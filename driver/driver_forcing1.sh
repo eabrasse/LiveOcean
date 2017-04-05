@@ -13,6 +13,8 @@ if [ $HOME = "/Users/PM5" ] ; then
   LO_parent="/Users/PM5/Documents/LiveOcean"
 elif [ $HOME = "/home/parker" ] ; then
   LO_parent="/data1/parker/LiveOcean"
+elif [ $HOME = "/home/eab32" ] ; then
+  LO_parent="/pmr4/eab32/LiveOcean"
 fi
 . $LO_parent"/driver/common.lib"
 
