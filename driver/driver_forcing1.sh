@@ -13,6 +13,8 @@ if [ $HOME = "/Users/PM5" ] ; then
   LO_parent="/Users/PM5/Documents/LiveOcean"
 elif [ $HOME = "/home/parker" ] ; then
   LO_parent="/data1/parker/LiveOcean"
+elif [ $HOME = "/Users/elizabethbrasseale" ] ; then
+  LO_parent="/Users/elizabethbrasseale/LiveOcean"
 elif [ $HOME = "/home/eab32" ] ; then
   LO_parent="/pmr4/eab32/LiveOcean"
 fi
@@ -117,7 +119,11 @@ do
   
   # Make the forcing.
   cd $LO_parent"/forcing/"$frc
-  source $HOME"/.bashrc"
+  if [ $HOME=="/Users/elizabethbrasseale" ] ; then
+    source $HOME"/.bash_profile"
+  else
+    source $HOME"/.bashrc"
+  fi
   if [ -e $HOME"/.bash_profile" ] ; then
     source $HOME"/.bash_profile"
   fi
