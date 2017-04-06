@@ -19,7 +19,6 @@ elif [ $HOME = "/home/parker" ] ; then
 elif [ $HOME = "/Users/elizabethbrasseale" ]; then
   LO_parent="/Users/elizabethbrasseale/LiveOcean"
   R_parent="Users/elizabethbrasseale/LiveOcean_ROMS"
-=======
 elif [ $HOME = "/home/eab32" ] ; then
   LO_parent="/pmr4/eab32/LiveOcean"
   R_parent="/pmr4/eab32/LiveOcean_ROMS"
@@ -109,7 +108,7 @@ do
   # Note that the python code creates an empty f_string directory.
   # Also cd to where the ROMS executable lives.
   cd $LO_parent"/forcing/dot_in/"$gtagex
-  if [$HOME == "Users/elizabethbrasseale"]; then
+  if [ $HOME == "/Users/elizabethbrasseale" ]; then
 	  source $HOME"/.bash_profile"
   else
 	  source $HOME"/.bashrc"
