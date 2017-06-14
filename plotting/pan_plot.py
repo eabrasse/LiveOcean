@@ -1,19 +1,37 @@
 """
 Plot fields in one or more history files.
 
-On fjord this needs to be run with an X window.
+On fjord this can be run from the command line, no X window needed,
+but it is only for plotting to files, not the screen:
 
-Examples of running from the command line:
+python pan_plot.py -x lobio3 -d 2013.01.02 -fno test.png -lt low_pass -pt P_basic
+
+Running from the terminal on my mac, and making a movie:
+    
+python pan_plot.py -g aestus1 -t A1 -x ae1 -d 2013.02.07 -lt hindcast -pt P_sectA -mov True
+
+python pan_plot.py -g aestus1 -t A1 -x ae1 -d 2013.02.01 -lt hindcast -pt P_sectA -mov True -nd 13
+
+Running for MERHAB from the linux command line on mac or fjord,
+BUT right now it has to be run from LiveOcean/plotting/
+    
+python /data1/parker/LiveOcean/plotting/pan_plot.py -g cascadia1 -t base -x lobio1 -lt merhab -pt P_tracks_MERHAB
+
+Running from the ipython command line:
 
 cd /Users/PM5/Documents/LiveOcean/plotting
 
-run pan_plot.py -d 2015.02.01
+run pan_plot.py
 
-run pan_plot.py -g cascadia2 -t frc2 -x lo1 -d 2013.01.09
+run pan_plot.py -g aestus1 -t A1 -x ae1 -d 2013.02.07
 
-run pan_plot.py -g cascadia2 -t frc2 -x lo1 -d 2013.01.01 -hs 25
+run pan_plot.py -g cas1 -t f1 -x r820 -d 2013.01.01 -hs 25
 
-run pan_plot.py -g aestus1 -t A1 -x ae1 -d 2013.01.31 -hs 25
+run pan_plot.py -x lobio3 -d 2013.01.02 -fno test.png -lt low_pass -pt P_basic
+
+run pan_plot.py -g aestus1 -t A1 -x ae1 -d 2013.02.07 -lt backfill -pt P_sectA -mov True
+
+run pan_plot.py -g cascadia1 -t base -x lobio1 -d 2017.05.18 -lt snapshot -pt P_tracks
 
 """
 
@@ -38,50 +56,68 @@ parser.add_argument('-t', '--tag', nargs='?', type=str,
 parser.add_argument('-x', '--ex_name', nargs='?', type=str,
                     default='lobio1')
 parser.add_argument('-d', '--date_string', nargs='?', type=str,
-                    default='2015.09.19')
+                    default='2017.05.11')
 parser.add_argument('-hs', '--hour_string', nargs='?', type=str,
                     default='02')
 parser.add_argument('-nd', '--num_days', nargs='?', type=int,
                     default=0) # number of additional days
+# more arguments that allow you to bypass the interactive choices
+parser.add_argument('-lt', '--list_type', nargs='?', type=str,
+                    default='')
+parser.add_argument('-pt', '--plot_type', nargs='?', type=str,
+                    default='')
+parser.add_argument('-fno', '--fn_out', nargs='?', type=str,
+                    default='')
+parser.add_argument('-mov', '--make_movie', nargs='?', type=bool,
+                    default=False)
+
 args = parser.parse_args()
 
 Ldir = Lfun.Lstart(args.gridname, args.tag)
 Ldir['gtagex'] = Ldir['gtag'] + '_' + args.ex_name
 
 # choose the type of list to make
-print(30*'*' + ' pan_plot ' + 30*'*')
-print('\n%s\n' % '** Choose List type (return for test) **')
-lt_list = ['test', 'low_pass', 'hindcast', 'forecast', 'old_style', 'atlantis']
-Nlt = len(lt_list)
-lt_dict = dict(zip(range(Nlt), lt_list))
-for nlt in range(Nlt):
-    print(str(nlt) + ': ' + lt_list[nlt])
-
-my_nlt = input('-- Input number -- ')
-if len(my_nlt)==0:
-    list_type = 'test'
+if len(args.list_type) == 0:
+    print(30*'*' + ' pan_plot ' + 30*'*')
+    print('\n%s\n' % '** Choose List type (return for snapshot) **')
+    lt_list = ['snapshot', 'low_pass', 'backfill', 'forecast',
+               'merhab', 'old_style',
+               'atlantis', 'salish', 'salish_seq']
+    Nlt = len(lt_list)
+    lt_dict = dict(zip(range(Nlt), lt_list))
+    for nlt in range(Nlt):
+        print(str(nlt) + ': ' + lt_list[nlt])
+    my_nlt = input('-- Input number -- ')
+    if len(my_nlt)==0:
+        list_type = 'snapshot'
+    else:
+        list_type = lt_dict[int(my_nlt)]
 else:
-    list_type = lt_dict[int(my_nlt)]
+    list_type = args.list_type
 
 dt0 = datetime.strptime(args.date_string, '%Y.%m.%d')
 dt1 = dt0 + timedelta(args.num_days)
 
 #%% choose the type of plot to make
-print('\n%s\n' % '** Choose Plot type (return for P_basic) **')
-pt_list_raw = dir(roms_plots)
-pt_list = []
-for pt in pt_list_raw:
-    if pt[:2] == 'P_':
-        pt_list.append(pt)
-Npt = len(pt_list)
-pt_dict = dict(zip(range(Npt), pt_list))
-for npt in range(Npt):
-    print(str(npt) + ': ' + pt_list[npt])
-my_npt = input('-- Input number -- ')
-if len(my_npt)==0:
-    plot_type = 'P_basic'
+if len(args.plot_type) == 0:
+    print('\n%s\n' % '** Choose Plot type (return for P_basic) **')
+    pt_list_raw = dir(roms_plots)
+    pt_list = []
+    for pt in pt_list_raw:
+        if pt[:2] == 'P_':
+            pt_list.append(pt)
+    Npt = len(pt_list)
+    pt_dict = dict(zip(range(Npt), pt_list))
+    for npt in range(Npt):
+        print(str(npt) + ': ' + pt_list[npt])
+    my_npt = input('-- Input number -- ')
+    if len(my_npt)==0:
+        plot_type = 'P_basic'
+    else:
+        plot_type = pt_dict[int(my_npt)]
 else:
-    plot_type = pt_dict[int(my_npt)]
+    plot_type = args.plot_type
+    
 whichplot = getattr(roms_plots, plot_type)
 
 def make_fn_list(dt0, dt1, Ldir, hourmax=24):
@@ -104,11 +140,23 @@ def make_fn_list(dt0, dt1, Ldir, hourmax=24):
     return fn_list
 
 #%% choose which file(s) to plot
-if list_type == 'test':
+if list_type == 'snapshot' and plot_type != 'P_tracks_MERHAB':
     # return a single default file name in the list
     fn_list = [Ldir['roms'] + 'output/' + Ldir['gtagex'] + '/' +
                'f' + args.date_string +
                '/ocean_his_00' + args.hour_string + '.nc']
+elif plot_type == 'P_tracks_MERHAB':
+    if list_type == 'merhab':
+        # return a single file name for today's forecast
+        dt = datetime.now()
+        args.date_string = dt.strftime('%Y.%m.%d')
+    elif list_type == 'snapshot':
+        pass # use args.date_string
+    fn_list = [Ldir['roms'] + 'output/' + Ldir['gtagex'] + '/' +
+               'f' + args.date_string + '/ocean_his_0002.nc']
+    args.fn_out = (Ldir['LOo'] + 'plots/merhab_tracks_'
+                   + args.date_string + '.png')
+    #print(args.fn_out)
 elif list_type == 'hindcast':
     fn_list = make_fn_list(dt0,dt1,Ldir)
 elif list_type == 'forecast':
@@ -138,33 +186,56 @@ elif list_type=='atlantis':
     fn = (Ldir['parent'] + 'roms/output/salish_2006_4_lp/f2006.07.30/' +
         'low_passed.nc')
     fn_list.append(fn)
+elif list_type=='salish':
+    fn_list = []
+    fn = (Ldir['parent'] + 'roms/output/salish_2006_4/ocean_his_5020.nc')
+    fn_list.append(fn)
+elif list_type=='salish_seq':
+    fn_list = []
+    for ii in range(4993, 5076): # have 4993 through 5075 on mac
+        nstr = ('0000' + str(ii))[-4:]
+        fn = (Ldir['parent'] + 'roms/output/salish_2006_4/ocean_his_' + nstr + '.nc')
+        fn_list.append(fn)
 
 #%% plot
 in_dict = roms_plots.get_in_dict(plot_type)
 vlims = in_dict['vlims']
 
-if len(fn_list) == 1:
-    # plot to screen
+if len(args.fn_out) == 0:
+    if len(fn_list) == 1:
+        # plot a single image to screen
+        fn = fn_list[0]
+        in_dict['fn'] = fn
+        in_dict['fn_out'] = ''
+        out_dict = whichplot(in_dict)
+    elif len(fn_list) > 1:
+        # prepare a directory for results
+        outdir0 = Ldir['LOo'] + 'plots/'
+        Lfun.make_dir(outdir0, clean=False)
+        outdir = outdir0 + list_type + '_' + plot_type + '_' + Ldir['gtagex'] + '/'
+        Lfun.make_dir(outdir, clean=True)
+        # plot to a folder of files
+        jj = 0
+        for fn in fn_list:
+            nouts = ('0000' + str(jj))[-4:]
+            outname = 'plot_' + nouts + '.png'
+            outfile = outdir + outname
+            print('Plotting ' + fn)
+            in_dict['fn'] = fn
+            in_dict['fn_out'] = outfile
+            in_dict['vlims'] = vlims
+            out_dict = whichplot(in_dict)
+            vlims = out_dict['vlims']
+            jj += 1
+        # and make a movie
+        if args.make_movie:
+            ff_str = ("ffmpeg -r 8 -pattern_type glob -i " + 
+            " '"+outdir+"*.png' -c:v libx264 -pix_fmt yuv420p -crf 25 "+outdir+"movie.mp4")
+            os.system(ff_str)        
+else:
+    # plot a single image to a file
     fn = fn_list[0]
     in_dict['fn'] = fn
-    in_dict['fn_out'] = ''
+    in_dict['fn_out'] = args.fn_out
     out_dict = whichplot(in_dict)
-elif len(fn_list) > 1:
-    #prepare a directory for results
-    outdir0 = Ldir['LOo'] + 'plots/'
-    Lfun.make_dir(outdir0, clean=False)
-    outdir = outdir0 + list_type + '_' + plot_type + '_' + Ldir['gtagex'] + '/'
-    Lfun.make_dir(outdir, clean=True)
-    # plot to a folder of files
-    jj = 0
-    for fn in fn_list:
-        nouts = ('0000' + str(jj))[-4:]
-        outname = 'plot_' + nouts + '.png'
-        outfile = outdir + outname
-        print('Plotting ' + fn)
-        in_dict['fn'] = fn
-        in_dict['fn_out'] = outfile
-        in_dict['vlims'] = vlims
-        out_dict = whichplot(in_dict)
-        vlims = out_dict['vlims']
-        jj += 1
+ 

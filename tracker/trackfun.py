@@ -24,7 +24,8 @@ def get_tracks(fn_list, plon0, plat0, pcs0, dir_tag,
     pcsA = pcs0.copy()
 
     # get basic info
-    G, S = zrfun.get_basic_info(fn_list[0], getT=False)
+    G = zrfun.get_basic_info(fn_list[0], only_G=True)
+    S = zrfun.get_basic_info(fn_list[0], only_S=True)
 
     # get time vector of history files
     NT = len(fn_list)
@@ -410,7 +411,15 @@ def get_fn_list(idt, Ldir):
             for hh in range(2,26):
                 hhhh = ('0000' + str(hh))[-4:]
                 fn_list.append(indir + 'ocean_his_' + hhhh + '.nc')
+    return fn_list
 
-
-
+def get_fn_list_1day(idt, Ldir):
+    # LiveOcean version, for 1 day only
+    fn_list = []
+    dd = idt.strftime('%Y.%m.%d')
+    indir = (Ldir['roms'] + 'output/' + Ldir['gtagex'] +
+            '/f' + dd + '/')
+    for hh in range(2,26):
+        hhhh = ('0000' + str(hh))[-4:]
+        fn_list.append(indir + 'ocean_his_' + hhhh + '.nc')
     return fn_list

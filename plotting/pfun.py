@@ -18,9 +18,20 @@ if alp not in sys.path:
 import Lfun
 Ldir = Lfun.Lstart()
 import zrfun
+import zfun
 
 import numpy as np
+
+import os
+which_home = os.environ.get("HOME") # This works even when called by cron.
+if which_home == '/Users/PM5': # mac version
+    pass
+elif which_home == '/home/parker': # fjord version
+    import matplotlib as mpl
+    mpl.use('Agg')
+
 import matplotlib.pyplot as plt
+import matplotlib.path as mpath
 import pandas as pd
 
 def topfig():
@@ -81,19 +92,22 @@ def add_bathy_contours(ax, ds, depth_levs = [], txt=False):
     h = ds['h'][:]
     lon = ds['lon_rho'][:]
     lat = ds['lat_rho'][:]
+    c1 = 'k'
+    c2 = 'k'
     if len(depth_levs) == 0:
-        ax.contour(lon, lat, h, [200], colors='k')
-        ax.contour(lon, lat, h, [2000], colors='g')
+        ax.contour(lon, lat, h, [200], colors=c1, linewidths=0.5)
+        ax.contour(lon, lat, h, [2000], colors=c2, linewidths=0.5)
         if txt==True:
-            ax.text(.95, .95, '200 m', color='k',
+            ax.text(.95, .95, '200 m', color=c1,
                     horizontalalignment='right',
                     transform=ax.transAxes)
-            ax.text(.95, .92, '2000 m', color='g',
+            ax.text(.95, .92, '2000 m', color=c2,
                     horizontalalignment='right',transform=ax.transAxes)
     else:
         ax.contour(lon, lat, h, depth_levs, colors='g')
 
-def add_map_field(ax, ds, varname, slev=-1, vlims=(), cmap='rainbow', fac=1):
+def add_map_field(ax, ds, varname, slev=-1, vlims=(), cmap='rainbow',
+                  fac=1, alpha=1, do_mask_salish=False):
     cmap = plt.get_cmap(name=cmap)
     if 'lon_rho' in ds[varname].coordinates:
         x = ds['lon_psi'][:]
@@ -109,20 +123,30 @@ def add_map_field(ax, ds, varname, slev=-1, vlims=(), cmap='rainbow', fac=1):
         v = ds[varname][0, slev, 1:-1, :].squeeze()
     if len(vlims) == 0:
         vlims = auto_lims(v)
-    cs = ax.pcolormesh(x, y, v*fac, vmin=vlims[0], vmax=vlims[1], cmap=cmap)
+    
+    if do_mask_salish:
+        v = mask_salish(v, ds['lon_rho'][1:-1, 1:-1], ds['lat_rho'][1:-1, 1:-1])  
+    
+    cs = ax.pcolormesh(x, y, v*fac, vmin=vlims[0], vmax=vlims[1], cmap=cmap, alpha=alpha)
     return cs, vlims
 
-def add_velocity_vectors(ax, ds, fn, v_scl=3, v_leglen=0.5, nngrid=80):
+def add_velocity_vectors(ax, ds, fn, v_scl=3, v_leglen=0.5, nngrid=80, zlev=0):
     # v_scl: scale velocity vector (smaller to get longer arrows)
     # v_leglen: m/s for velocity vector legend
     # GET DATA
-    [G] = zrfun.get_basic_info(fn, getS=False, getT=False)
-    u = ds['u'][0, -1, :, :].squeeze()
-    v = ds['v'][0, -1, :, :].squeeze()
+    G = zrfun.get_basic_info(fn, only_G=True)
+    if zlev == 0:
+        u = ds['u'][0, -1, :, :].squeeze()
+        v = ds['v'][0, -1, :, :].squeeze()
+    else:
+        zfull_u = get_zfull(ds, fn, 'u')
+        zfull_v = get_zfull(ds, fn, 'v')
+        u = get_laym(ds, zfull_u, ds['mask_u'][:], 'u', zlev).squeeze()
+        v = get_laym(ds, zfull_v, ds['mask_v'][:], 'v', zlev).squeeze()
     # ADD VELOCITY VECTORS
     # set masked values to 0
-    ud = u.data; ud[G['mask_u']==False] = 0
-    vd = v.data; vd[G['mask_v']==False] = 0
+    ud = u.data; ud[u.mask]=0
+    vd = v.data; vd[v.mask]=0
     # create interpolant
     import scipy.interpolate as intp
     ui = intp.interp2d(G['lon_u'][0, :], G['lat_u'][:, 0], ud)
@@ -172,16 +196,18 @@ def add_windstress_flower(ax, ds, t_scl=0.2, t_leglen=0.1):
     ax.text(.85, .15, str(t_leglen) + ' Pa',
         horizontalalignment='center', alpha=t_alpha, transform=ax.transAxes)
 
-def add_info(ax, fn):
+def add_info(ax, fn, fs=12):
     # put info on plot
-    [T] = zrfun.get_basic_info(fn, getG=False, getS=False)
-    ax.text(.95, .07, T['tm'].strftime('%Y-%m-%d'),
-        horizontalalignment='right', transform=ax.transAxes)
-    ax.text(.95, .04, T['tm'].strftime('%H:%M') + ' UTC',
-        horizontalalignment='right', transform=ax.transAxes)
+    T = zrfun.get_basic_info(fn, only_T=True)
+    ax.text(.95, .075, T['tm'].strftime('%Y-%m-%d'),
+        horizontalalignment='right' , verticalalignment='bottom',
+        transform=ax.transAxes, fontsize=fs)
+    ax.text(.95, .065, T['tm'].strftime('%H:%M') + ' UTC',
+        horizontalalignment='right', verticalalignment='top',
+        transform=ax.transAxes, fontsize=fs)
     ax.text(.06, .04, fn.split('/')[-3],
         verticalalignment='bottom', transform=ax.transAxes,
-        rotation='vertical')
+        rotation='vertical', fontsize=fs)
 
 def get_aa(ds):
     x = ds['lon_psi'][0,:]
@@ -318,6 +344,132 @@ def make_full(flt):
             fld_top = fld_mid[-1].copy()
             fld = np.concatenate((fld_bot, fld_mid, fld_top), axis=0)
     return fld
+    
+def mask_salish(fld, lon, lat):
+    """
+    Mask out map fields inside the Salish Sea.   
+    Input:
+        2D fields of data (masked array), and associated lon and lat
+        all must be the same shap
+    Output:
+        The data field, now masked in the Salish Sea.
+    """
+    x = [-125.5, -123.5, -122, -122]
+    y = [50, 46.8, 46.8, 50]
+    V = np.ones((len(x),2))
+    V[:,0] = x
+    V[:,1] = y
+    P = mpath.Path(V)
+    Rlon = lon.flatten()
+    Rlat = lat.flatten()
+    R = np.ones((len(Rlon),2))
+    R[:,0] = Rlon
+    R[:,1] = Rlat
+    RR = P.contains_points(R) # boolean    
+    fld = np.ma.masked_where(RR.reshape(lon.shape), fld)
+    return fld
+    
+def get_section(ds, vn, x, y, in_dict):
+    
+    # PLOT CODE
+    from warnings import filterwarnings
+    filterwarnings('ignore') # skip a warning message
+
+    # GET DATA
+    G, S, T = zrfun.get_basic_info(in_dict['fn'])
+    h = G['h']
+    zeta = ds['zeta'][:].squeeze()
+    zr = zrfun.get_z(h, zeta, S, only_rho=True)
+
+    sectvar = ds[vn][:].squeeze()
+
+    L = G['L']
+    M = G['M']
+    N = S['N']
+
+    lon = G['lon_rho']
+    lat = G['lat_rho']
+    mask = G['mask_rho']
+    maskr = mask.reshape(1, M, L).copy()
+    mask3 = np.tile(maskr, [N, 1, 1])
+    zbot = -h # don't need .copy() because of the minus operation
+
+    # make sure fields are masked
+    zeta[mask==False] = np.nan
+    zbot[mask==False] = np.nan
+    sectvar[mask3==False] = np.nan
+
+    # create dist
+    earth_rad = zfun.earth_rad(np.mean(lat[:,0])) # m
+    xrad = np.pi * x /180
+    yrad = np.pi * y / 180
+    dx = earth_rad * np.cos(yrad[1:]) * np.diff(xrad)
+    dy = earth_rad * np.diff(yrad)
+    ddist = np.sqrt(dx**2 + dy**2)
+    dist = np.zeros(len(x))
+    dist[1:] = ddist.cumsum()/1000 # km
+    # find the index of zero
+    i0, i1, fr = zfun.get_interpolant(np.zeros(1), dist)
+    idist0 = i0
+    distr = dist.reshape(1, len(dist)).copy()
+    dista = np.tile(distr, [N, 1]) # array
+    # pack fields to process in dicts
+    d2 = dict()
+    d2['zbot'] = zbot
+    d2['zeta'] = zeta
+    d2['lon'] = lon
+    d2['lat'] = lat
+    d3 = dict()
+    d3['zr'] = zr
+    d3['sectvar'] = sectvar
+    # get vectors describing the (plaid) grid
+    xx = lon[1,:]
+    yy = lat[:,1]
+    col0, col1, colf = zfun.get_interpolant(x, xx)
+    row0, row1, rowf = zfun.get_interpolant(y, yy)
+    # and prepare them to do the bilinear interpolation
+    colff = 1 - colf
+    rowff = 1 - rowf
+    # now actually do the interpolation
+    # 2-D fields
+    v2 = dict()
+    for fname in d2.keys():
+        fld = d2[fname]
+        fldi = (rowff*(colff*fld[row0, col0] + colf*fld[row0, col1])
+        + rowf*(colff*fld[row1, col0] + colf*fld[row1, col1]))
+        if type(fldi) == np.ma.core.MaskedArray:
+            fldi = fldi.data # just the data, not the mask
+        v2[fname] = fldi
+    # 3-D fields
+    v3 = dict()
+    for fname in d3.keys():
+        fld = d3[fname]
+        fldi = (rowff*(colff*fld[:, row0, col0] + colf*fld[:, row0, col1])
+        + rowf*(colff*fld[:, row1, col0] + colf*fld[:, row1, col1]))
+        if type(fldi) == np.ma.core.MaskedArray:
+            fldid = fldi.data # just the data, not the mask
+            fldid[fldi.mask == True] = np.nan
+        v3[fname] = fldid
+    v3['dist'] = dista # distance in km
+    # make "full" fields by padding top and bottom
+    nana = np.nan * np.ones((N + 2, len(dist))) # blank array
+    v3['zrf'] = nana.copy()
+    v3['zrf'][0,:] = v2['zbot']
+    v3['zrf'][1:-1,:] = v3['zr']
+    v3['zrf'][-1,:] = v2['zeta']
+    #
+    v3['sectvarf'] = nana.copy()
+    v3['sectvarf'][0,:] = v3['sectvar'][0,:]
+    v3['sectvarf'][1:-1,:] = v3['sectvar']
+    v3['sectvarf'][-1,:] = v3['sectvar'][-1,:]
+    #
+    v3['distf'] = nana.copy()
+    v3['distf'][0,:] = v3['dist'][0,:]
+    v3['distf'][1:-1,:] = v3['dist']
+    v3['distf'][-1,:] = v3['dist'][-1,:]    
+    
+    
+    return v2, v3, dist, idist0
 
 
 

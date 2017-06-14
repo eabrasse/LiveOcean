@@ -22,7 +22,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-g", "--gridname", type=str, default='cascadia1')
 parser.add_argument("-t", "--tag", type=str, default='base')
 parser.add_argument("-x", "--ex_name", type=str, default='lobio1')
-parser.add_argument("-nd", "--num_days", type=int, default=30)
+parser.add_argument("-nd", "--num_days", type=int, default=10)
 args = parser.parse_args()
 
 Ldir = Lfun.Lstart(args.gridname, args.tag)
@@ -35,30 +35,42 @@ print(60*'*')
 
 # which forecast days exist in the forcing directory
 f_dir0 = Ldir['LOo'] + Ldir['gtag'] + '/'
-f_dir0_list = []
+f_list = []
 for item in os.listdir(f_dir0):
     if item[0] == 'f' and len(item) == 11:
-        f_dir0_list.append(item)
+        f_list.append(item)
+f_list.sort()
+# limit to the most recent ndays
+f_list = f_list[-args.num_days:]
 
+# list of properties to inspect
+clist = ['atm', 'ocn1', 'riv', 'tide', 'dot_in', 'his', 'carbon', 'azu', 'low_pass', 'tracks']
+
+# initialize the DataFrame
+f_df = pd.DataFrame(index=f_list, columns=clist)
+
+# for some things we will look for the existence of specific files as a test of completion
 force_dict = {'atm': ['lwrad_down.nc', 'Pair.nc', 'Qair.nc', 'rain.nc',
                       'swrad.nc', 'Tair.nc', 'Uwind.nc', 'Vwind.nc'],
               'ocn': ['ocean_bry.nc', 'ocean_clm.nc', 'ocean_ini.nc'],
-              'riv': ['rivers.nc', ],
-              'tide': ['tides.nc', ]}
-
-clist = ['atm', 'ocn', 'riv', 'tide', 'dot_in', 'his', 'lp', 'azu']
-
-f_df = pd.DataFrame(index=f_dir0_list, columns=clist)
-
-for which_forecast in f_df.index[-args.num_days:]:
+              'ocn1': ['ocean_bry.nc', 'ocean_clm.nc', 'ocean_ini.nc'],
+              'riv': ['rivers.nc'],
+              'tide': ['tides.nc']}
+if 'bio' in args.ex_name:
+    force_dict['ocn'] = ['ocean_bry_bio.nc', 'ocean_clm_bio.nc', 'ocean_ini_bio.nc']
+    force_dict['ocn1'] = ['ocean_bry_bio.nc', 'ocean_clm_bio.nc', 'ocean_ini_bio.nc']
+    force_dict['riv'] = ['rivers_bio.nc']
+#
+for f_string in f_list:
     for which_force in force_dict.keys():
-        force_dir = f_dir0 + which_forecast + '/' + which_force + '/'
+        force_dir = f_dir0 + f_string + '/' + which_force + '/'
         try:
             lll = os.listdir(force_dir)
             nc_list = force_dict[which_force]
             if set(nc_list).issubset(set(lll)):
-                f_df.ix[which_forecast, which_force] = 'YES'
-                if which_force in ['atm', 'ocn']:
+                f_df.loc[f_string, which_force] = 'YES'
+                # and in some cases looks for specific time info
+                if which_force in ['atm', 'ocn', 'ocn1']:
                     try:
                         time_format = '%Y.%m.%d %H:%M:%S'
                         ps = Lfun.csv_to_dict(force_dir + 'Info/process_status.csv')
@@ -66,50 +78,71 @@ for which_forecast in f_df.index[-args.num_days:]:
                         dt1 = datetime.strptime(ps['end_time'], time_format)
                         vdt0 = datetime.strptime(ps['var_start_time'], time_format)
                         vdt1 = datetime.strptime(ps['var_end_time'], time_format)
-                        f_df.ix[which_forecast, which_force] = str((vdt1-vdt0).days) + 'd'
+                        f_df.loc[f_string, which_force] = str((vdt1-vdt0).days) + 'd'
                     except:
                         pass
-            else:
-                f_df.ix[which_forecast, which_force] = 'no'
         except:
             # assume the directory is missing
-            f_df.ix[which_forecast, which_force] = '--'
+            pass
 
-# what forecasts have been run successfully
+# for other things look in the Info
+for f_string in f_list:
+    for which_force in ['carbon', 'low_pass']:
+        force_dir = f_dir0 + f_string + '/' + which_force + '/'
+        try:
+            ps = Lfun.csv_to_dict(force_dir + 'Info/process_status.csv')
+            if ps['result'] == 'success':
+                f_df.loc[f_string, which_force] = 'YES'
+            else:
+                f_df.loc[f_string, which_force] = 'no'
+        except:
+            pass
+
+# Then look for forecasts have been run successfully
 r_dir0 = Ldir['roms'] + 'output/' + Ldir['gtagex'] + '/'
 try:
-    for item in os.listdir(r_dir0):
-        if item[0] == 'f' and len(item) == 11:
-            f_string = item
-            fl = os.listdir(r_dir0 + f_string)
-
+    for f_string in f_list:
+        r_dir = r_dir0 + f_string
+        if os.path.isdir(r_dir):
+            fl = os.listdir(r_dir)
             if 'liveocean.in' in fl:
-                f_df.ix[f_string, 'dot_in'] = 'YES'
-            if 'low_passed.nc' in fl:
-                f_df.ix[f_string, 'lp'] = 'YES'
+                f_df.loc[f_string, 'dot_in'] = 'YES'
             flh = [x for x in fl if 'ocean_his' in x]
-            f_df.ix[f_string, 'his'] = str(int(flh[-1][10:14]))
+            flh.sort()
+            # get the number of the last history file
+            f_df.loc[f_string, 'his'] = str(int(flh[-1][-7:-3]))
 except:
     pass
 
 # what has been pushed to Azure (just the last num_days)
-from azure.storage.blob import BlobService
+from azure.storage.blob import BlockBlobService
+from azure.storage.blob import PublicAccess
 azu_dict = Lfun.csv_to_dict(Ldir['data'] + 'accounts/azure_pm_2015.05.25.csv')
 account = azu_dict['account']
 key = azu_dict['key']
-blob_service = BlobService(account_name=account, account_key=key)
-for f_string in f_df.index[-args.num_days:]:
+blob_service = BlockBlobService(account_name=account, account_key=key)
+for f_string in f_list:
     ff_string = f_string.replace('.','')
     containername = ff_string
     try:
         blob_service.create_container(containername)
-        blob_service.set_container_acl(containername, x_ms_blob_public_access='container')
+        blob_service.set_container_acl(containername, public_access=PublicAccess.Container)
         blobs = blob_service.list_blobs(containername)
         his_list = []
         for blob in blobs:
             his_list.append(blob.name)
-        f_df.ix[f_string, 'azu'] = str(int(his_list[-1][-6:-3]))
+            #print(blob.name)
+        his_list.sort()
+        f_df.loc[f_string, 'azu'] = str(int(his_list[-1][-7:-3]))
     except:
+        pass
+        
+# see if the tracks plot has been made
+for f_string in f_list:
+    t_plot = Ldir['LOo'] + 'plots/merhab_tracks_' + f_string[1:] + '.png'
+    if os.path.isfile(t_plot):
+        f_df.loc[f_string, 'tracks'] = 'YES'
+    else:
         pass
 
 # mark missing things
@@ -124,4 +157,4 @@ f_df = f_df.sort_index()
 #pd.set_option('display.max_rows', args.num_days)
 #
 # This prints just end rows
-print(f_df[-args.num_days:])
+print(f_df)

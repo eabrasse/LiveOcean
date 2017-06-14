@@ -11,12 +11,13 @@ if alp not in sys.path:
 import Lfun
 Ldir = Lfun.Lstart()
 import zfun
-import matfun
+import pfun
+#import matfun
 import netCDF4 as nc
 
 # get the coastline
-fn_coast = Ldir['data'] + 'coast/pnw_coast_combined.mat'
-cmat = matfun.loadmat(fn_coast)
+# fn_coast = Ldir['data'] + 'coast/pnw_coast_combined.mat'
+# cmat = matfun.loadmat(fn_coast)
 
 # PLOTTING
 import matplotlib.pyplot as plt
@@ -79,21 +80,23 @@ for vn in vn_list:
 
     cs = ax0.pcolormesh(lon, lat, fld, cmap = cmap)
     ax0.plot(lon[jj, ii], lat[jj, ii],'*r')
-    ax0.plot(cmat['lon'],cmat['lat'], '-k', linewidth=.5)
+    pfun.add_coast(ax0)
+    #ax0.plot(cmat['lon'],cmat['lat'], '-k', linewidth=.5)
     ax0.axis([lon.min(), lon.max(), lat.min(), lat.max()])
     ax0.xaxis.set_ticklabels([])
     ax0.yaxis.set_ticklabels([])
-    zfun.dar(ax0)
+    pfun.dar(ax0)
     ax0.set_title(vn)
     fig.colorbar(cs, ax=ax0)
 
     cs = ax1.pcolormesh(lon, lat, flde, cmap = cmap)
     ax1.plot(lon[jj, ii], lat[jj, ii],'*r')
-    ax1.plot(cmat['lon'],cmat['lat'], '-k', linewidth=.5)
+    pfun.add_coast(ax1)
+    #ax1.plot(cmat['lon'],cmat['lat'], '-k', linewidth=.5)
     ax1.axis([lon.min(), lon.max(), lat.min(), lat.max()])
     ax1.xaxis.set_ticklabels([])
     ax1.yaxis.set_ticklabels([])
-    zfun.dar(ax1)
+    pfun.dar(ax1)
     fig.colorbar(cs, ax=ax1)
     
     from datetime import datetime
@@ -115,6 +118,6 @@ for vn in vn_list:
     cnum += 1
 
 plt.show()
-plt.savefig('/Users/PM5/Desktop/hycom' + tag + '.png')
+#plt.savefig('/Users/PM5/Desktop/hycom' + tag + '.png')
 
 

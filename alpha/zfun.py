@@ -1,5 +1,6 @@
 """
-This module contains functions for extracting data from ROMS history files.
+This module contains utility functions for interpolation, filtering
+and inspection.
 
 Parker MacCready
 """
@@ -7,13 +8,45 @@ Parker MacCready
 import netCDF4 as nc
 import numpy as np
 
-def interp_scattered_on_plaid(x, y, xvec, yvec, u):
+def interp2(x, y, X, Y, U):
+    """
+    Interpolate field U(X,Y) to u(x,y).  All grids are assumed to be plaid.
+    """
+    if is_plaid(x) and is_plaid(y) and is_plaid(Y) and is_plaid(Y):
+        uu = interp_scattered_on_plaid(x, y, X[0,:], Y[:,0], U)
+        u = np.reshape(uu, x.shape)
+        return u
+    else:
+        print('grids not plaid')
+        pass
+
+def is_plaid(x):
+    """
+    Test if a numpy array is plaid.
+    """
+    if not isinstance(x, np.ndarray):
+        return False
+    elif not ((x[:,0]==x[:,1]).all() or (x[0,:]==x[1,:]).all()):
+        return False
+    else:
+        return True
+
+def interp_scattered_on_plaid(x, y, xvec, yvec, u, exnan=True):
     """
     Gets values of the field u at locations (x,y).
 
-    NOTE: this can also be used to interpolate to a plad grid.  Just pass it
-    flattened versions of the new coordinate matrices, and then reshape
-    the output.  Appears to be super fast.
+    NOTE: this can also be used to interpolate to a plaid grid.
+    Just reshape the output to be the shape of the input grids.
+    Appears to be super fast.
+    
+    Example:
+    lon and lat are vectors that define the plaid grid that
+        matrix v is defined on
+    v = b['ssh']
+    x = G['lon_rho'] # matrix
+    y = G['lat_rho'] # matrix
+    vv = zfun.interp_scattered_on_plaid(x, y, lon, lat, v)
+    vv = np.reshape(vv, x.shape)
 
     All inputs and outputs are numpy arrays.
 
@@ -26,11 +59,12 @@ def interp_scattered_on_plaid(x, y, xvec, yvec, u):
     Returns a vector ui the same length as x and y.
 
     Note that because it relies on "get_interpolant" out-of-bounds
-    values default to nan.
+    values default to nan, unless you pass it the optional argument
+    exnan=False)
     """
     # get interpolants
-    xi0, xi1, xf = get_interpolant(x,xvec, extrap_nan=True)
-    yi0, yi1, yf = get_interpolant(y,yvec, extrap_nan=True)
+    xi0, xi1, xf = get_interpolant(x,xvec, extrap_nan=exnan)
+    yi0, yi1, yf = get_interpolant(y,yvec, extrap_nan=exnan)
 
     # bi linear interpolation
     u00 = u[yi0,xi0]
@@ -65,7 +99,6 @@ def get_interpolant(x, xvec, extrap_nan=False):
 
     If the x is ON a point in xvec the default is to return
     the index of that point and the one above.
-
     """
     
     from warnings import filterwarnings
@@ -153,26 +186,18 @@ def filt_AB8d(data):
     % weighted average of the data over the previous 8 days from time t,
     % with the weighting decaying from 1 to 1/e at t - 8 days.  There are 192
     % hours in 8 days.
-
     Input:
         assumed to be a 1D numpy array
-
     Output:
         a vector of the same size you started with,
         padded with NaN's at the ends.
     """
-
     fl = 8*24;
-
     filt = np.exp(np.linspace(-1,0,fl))
     filt = filt/filt.sum();
-
     smooth = np.nan*data
-
     for ii in range(fl+1, len(data)):
-
         smooth[ii] = (filt*data[ii-fl+1: ii + 1]).sum()
-
     return smooth
 
 def filt_hanning(data, n=40):
@@ -186,10 +211,10 @@ def filt_hanning(data, n=40):
         smooth = data
     else:
         filt = hanning_shape(n=n)
-        n = np.ceil(len(filt)/2).astype(int)
+        npad = np.floor(len(filt)/2).astype(int)
         smooth = np.convolve(data, filt, mode = 'same')
-        smooth[:n] = np.nan
-        smooth[-n:] = np.nan
+        smooth[:npad] = np.nan
+        smooth[-npad:] = np.nan
     return smooth
 
 def filt_godin(data):

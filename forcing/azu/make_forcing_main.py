@@ -16,7 +16,8 @@ from datetime import datetime
 start_time = datetime.now()
 
 # Azure commands
-from azure.storage.blob import BlobService
+from azure.storage.blob import BlockBlobService
+from azure.storage.blob import PublicAccess
 
 print('\nPushing forecast files to Azure for ' + Ldir['date_string'] + '\n')
 # azure does not like dots in container names!
@@ -31,12 +32,12 @@ key = azu_dict['key']
 containername = ff_string
 
 # get a handle to your account
-blob_service = BlobService(account_name=account, account_key=key)
+blob_service = BlockBlobService(account_name=account, account_key=key)
 blob_service.create_container(containername)
-blob_service.set_container_acl(containername, x_ms_blob_public_access='container')
+blob_service.set_container_acl(containername, public_access=PublicAccess.Container)
 
 if False: # testing
-    nend = 3
+    nend = 6
 else:
     if Ldir['run_type'] == 'backfill':
         nend = 26
@@ -51,7 +52,7 @@ try:
         dirname = Ldir['roms'] + 'output/' + Ldir['gtagex'] + '/' + f_string + '/'
         fname = dirname + hisname
         bname = open(fname, 'rb')
-        blob_service.put_block_blob_from_file(containername, hisname, bname)
+        blob_service.create_blob_from_stream(containername, hisname, bname)
         print('done putting ' + hisname)
         bname.close()
     result = 'success'

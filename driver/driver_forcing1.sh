@@ -3,8 +3,13 @@
 # This runs the code to create forcing for one or more days,
 # for any of the types of forcing,
 # allowing for either a forecast or backfill.
-
-# This version (8/21/2016) is designed to handle jobs more gracefully.
+#
+# CHANGES:
+# 8/21/2016 Various edits to handle jobs more gracefully.
+# 5/20/2017 I made it so that it could be run again but only re-make
+# the forcing directory if needed.  Then on 5/30/2017 Added the optional flag
+# -c (for clobber) to override this behavior and force it to
+# remake the forcing.
 
 # NOTE: must be run from fjord.
 
@@ -30,6 +35,7 @@ fi
 #  if backfill, then you must provide two more arguments
 # -0 start date: yyyymmdd
 # -1 end date: yyyymmdd
+# -c force it to remake the forcing, even if it already exists
 #
 # example call to do backfill:
 # ./driver_forcing1.sh -g cascadia1 -t base -f atm -r backfill -0 20140201 -1 20140203
@@ -43,6 +49,7 @@ fi
 # you can also use long names like --ex_name instead of -x
 
 ex_name="placeholder"
+clobber_flag=0 # the default (0) is to not clobber, unless the -c argument is used
 while [ "$1" != "" ] ; do
   case $1 in
     -g | --gridname )  shift
@@ -65,6 +72,9 @@ while [ "$1" != "" ] ; do
       ;;
     -1 | --ymd1 )  shift
       ymd1=$1
+      ;;
+    -c | --clobber )
+      clobber_flag=1
       ;;
   esac
   shift
@@ -105,17 +115,6 @@ do
   echo $(date)
   LOogf_fi=$LOogf_f"/Info"
   LOogf_fd=$LOogf_f"/Data"
-  # make sure directories exist
-  mkdir $LOo
-  mkdir $LOog
-  mkdir $LOogf
-  if [ -d $LOogf_f ]
-  then
-    rm -rf $LOogf_f
-  fi
-  mkdir $LOogf_f
-  mkdir $LOogf_fi
-  mkdir $LOogf_fd
   
   # Make the forcing.
   cd $LO_parent"/forcing/"$frc
@@ -137,17 +136,60 @@ do
   wait $PID1
   echo "job completed for" $f_string
   echo $(date)
+  # this makes all parent directories if needed
+  mkdir -p $LOogf
   
   checkfile=$LOogf_fi"/process_status.csv"
-  # check the checkfile to see if we should continue
-  if grep -q "result,success" $checkfile ; then
-    echo "- job completed successfully."
-    # will continue because we don't change while_flag
-  else
-    echo "- Something else happened."
-    while_flag=1
-    # stop the driver
+  
+  already_done_flag=0
+  # check to see if the job has already completed successfully
+  if [ -f $checkfile ] && [ $clobber_flag -eq 0 ]; then
+    if grep -q "result,success" $checkfile; then
+      echo "- No action needed: job completed successfully already."
+      already_done_flag=1
+    else
+      echo "- Trying job again."
+    fi
   fi
+  
+  if [ $already_done_flag -eq 0 ] || [ $clobber_flag -eq 1 ]; then
+    
+    if [ -d $LOogf_f ]
+    then
+      rm -rf $LOogf_f
+    fi
+    mkdir $LOogf_f
+    mkdir $LOogf_fi
+    mkdir $LOogf_fd
+    
+    # Make the forcing.
+    cd $LO_parent"/forcing/"$frc
+    source $HOME"/.bashrc"
+    if [ -e $HOME"/.bash_profile" ] ; then
+      source $HOME"/.bash_profile"
+    fi
+    if [ -e $HOME"/.profile" ] ; then
+      source $HOME"/.profile"
+    fi
+    python ./make_forcing_main.py -g $gridname -t $tag -f $frc -r $run_type -d $DD -x $ex_name > $LOogf_fi"/screen_out.txt" &
+
+    # Check that the job has finished successfully.
+    PID1=$!
+    wait $PID1
+    echo "job completed for" $f_string
+    echo $(date)
+  
+    # check the checkfile to see if we should continue
+    if grep -q "result,success" $checkfile ; then
+      echo "- Job completed successfully."
+      # will continue because we don't change while_flag
+    else
+      echo "- Something else happened."
+      while_flag=1
+      # stop the driver
+    fi
+  
+  fi # end of already_done_flag test
   
   # This function increments the day.
   # NOTE: it changes y, m, d, and D, even in the scope of this shell script!
