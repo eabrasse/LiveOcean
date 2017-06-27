@@ -53,8 +53,8 @@ reload(trackfun)
 #%% ************ USER INPUT **************************************
 
 # some run specifications
-gtagex = 'cascadia1_base_lobio1' # 'cascadia1_base_lo1' or 'D2005_his'
-ic_name = 'odell2' # 'jdf' or 'cr' or etc.
+gtagex = 'aestus1_aesss_ae1' # 'cascadia1_base_lo1' or 'D2005_his'
+ic_name = 'eliz_test' # 'jdf' or 'cr' or etc.
 dir_tag = 'forward' # 'forward' or 'reverse'
 method = 'rk4' # 'rk2' or 'rk4'
 surface = True # Boolean, True for trap to surface
@@ -95,6 +95,18 @@ elif Ldir['parent'] == '/data1/parker/':
         number_of_start_days = 55
         days_between_starts = 1
         days_to_track = 5
+elif Ldir['parent'] == '/Users/elizabethbrasseale/':
+    # eliz macbook
+    dt_first_day = datetime(2014,14,1)
+    number_of_start_days = 1
+    days_between_starts = 1
+    days_to_track = 1
+elif Ldir['parent'] == '/pmr4/eab32/'
+    # eliz fjord
+    dt_first_day = datetime(2014,14,1)
+    number_of_start_days = 1
+    days_between_starts = 1
+    days_to_track = 1
 
 # set particle initial locations, all numpy arrays
 #
@@ -140,6 +152,10 @@ elif ic_name == 'greencrab':
     plon00 = lonmat.flatten()
     plat00 = latmat.flatten()
     pcs00 = np.array([-.05])
+elif ic_name == 'eliz_test'
+    plon00 = np.array([0.0])
+    plat00 = np.array([45])
+    pcs00 = np.linspace(-.95,-.05,20)
 
 if len(plon00) != len(plat00):
     print('Problem with length of initial lat, lon vectors')
