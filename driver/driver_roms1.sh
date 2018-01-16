@@ -37,10 +37,10 @@ fi
 # -1 end date: yyyymmdd
 #
 # example call to do backfill, with a cold start:
-# ./driver_roms1.sh -g cascadia1 -t base -x lo1 -s new -r backfill -0 20140201 -1 20140203
+# ./driver_roms1.sh -g cascadia1 -t base -x lobio1 -s new -r backfill -0 20140201 -1 20140203
 #
 # example call to do forecast:
-# ./driver_roms1.sh -g cascadia1 -t base -x lo1 -s continuation -r forecast
+# ./driver_roms1.sh -g cascadia1 -t base -x lobio1 -s continuation -r forecast
 #
 # you can also use long names like --ex_name instead of -x
 
@@ -91,18 +91,24 @@ D1=$[10#$y1*10000 + 10#$m1*100 + 10#$d1]
 gtag=$gridname"_"$tag
 gtagex=$gtag"_"$ex_name
 
-while_flag=0
-while [ $D -le $D1 ] && [ $while_flag -eq 0 ]
+# initialize control flags
+keep_going=1 # 1 => keep going, 0 => stop the driver
+blow_ups=0
+
+# start the main loop over days
+while [ $D -le $D1 ] && [ $keep_going -eq 1 ]
 do
+  echo "********** driver_roms1.sh *******************"
+  echo "  blow ups = " $blow_ups
+  
   # manipulate the string D to insert dots, using the syntax:
-  #    substring = ${string:start_index:count}
-  # and the index starts from 0
+  # substring = ${string:start_index:count} and the index starts from 0
   DD=${D:0:4}.${D:4:2}.${D:6:2}
 
   f_string="f"$DD
   Rf=$R_parent"/output/"$gtagex"/"$f_string
-  #echo $Rf
   log_file=$Rf"/log"
+<<<<<<< HEAD
 
   # Make the dot in file.
   # Note that the python code creates an empty f_string directory.
@@ -122,17 +128,39 @@ do
   fi
 
   # choose which cores to run on
+=======
+
+  # choose which cores to run on (must be consistent in dot_in)
+>>>>>>> 42efa81e1fdbfdc2ceb9d77dd1db4f7568d3d4af
   if [ $run_type = "forecast" ] ; then
     hf="../shared/hf72a"
     np_num=72
   elif [ $run_type = "backfill" ] ; then
+<<<<<<< HEAD
     hf="../shared/hf72b"
     np_num=72
+=======
+    hf="../shared/hf144"
+    np_num=144
+  fi
+
+  # Run make_dot_in.py, which creates an empty f_string directory,
+  # and then cd to where the ROMS executable lives.
+  cd $LO_parent"/forcing/dot_in/"$gtagex
+  source $HOME"/.bashrc"
+  if [ $D = $D0 ] && [ $start_type = "new" ] ; then
+    python ./make_dot_in.py -g $gridname -t $tag -s $start_type -r $run_type -d $DD -x $ex_name -np $np_num -bu $blow_ups
+    cd $R_parent"/makefiles/"$ex_name"_tideramp"
+  else
+    python ./make_dot_in.py -g $gridname -t $tag -s continuation -r $run_type -d $DD -x $ex_name -np $np_num -bu $blow_ups
+    cd $R_parent"/makefiles/"$ex_name
+>>>>>>> 42efa81e1fdbfdc2ceb9d77dd1db4f7568d3d4af
   fi
 
   # the actual ROMS run command
   if [ $HOME = "/Users/PM5" ] ; then # testing
     echo "/cm/shared/local/openmpi-ifort/bin/mpirun -np $np_num -machinefile $hf oceanM $Rf/liveocean.in > $log_file &"
+<<<<<<< HEAD
   elif [ $HOME == "/Users/elizabethbrasseale" ]; then 
     echo "/cm/shared/cm/shared/local/openmpi-ifort/bin/mpirun -np $np_num -machinefile $hf oceanM $Rf/liveocean.in > $log_file &"
   elif [ $HOME == "/home/parker" ] ; then # the real thing
@@ -142,12 +170,16 @@ do
       wait $PID1
       echo "run completed for" $f_string
   elif [ $HOME == "/home/eab32" ] ; then # the real thing
+=======
+  elif [ $HOME == "/home/parker" ] ; then # the real thing
+>>>>>>> 42efa81e1fdbfdc2ceb9d77dd1db4f7568d3d4af
     /cm/shared/local/openmpi-ifort/bin/mpirun -np $np_num -machinefile $hf oceanM $Rf/liveocean.in > $log_file &
     # Check that ROMS has finished successfully.
     PID1=$!
     wait $PID1
     echo "run completed for" $f_string
   fi
+<<<<<<< HEAD
   
   # check the log_file to see if we should continue
   if grep -q "Blowing-up" $log_file ; then
@@ -164,11 +196,38 @@ do
     while_flag=1
   fi
   
+=======
+
+  # check the log_file to see if we should continue
+  if grep -q "Blowing-up" $log_file ; then
+    echo "- Run blew up!"
+    blow_ups=$(( $blow_ups + 1 )) #increment the blow ups
+    if [ $blow_ups -le 1 ] ; then
+      keep_going=1
+    else
+      keep_going=0
+    fi
+  elif grep -q "ERROR" $log_file ; then
+    echo "- Run had an error."
+    keep_going=0
+  elif grep -q "ROMS/TOMS: DONE" $log_file ; then
+    echo "- Run completed successfully."
+    keep_going=1
+    blow_ups=0
+  else
+    echo "- Something else happened."
+    keep_going=0
+  fi
+
+>>>>>>> 42efa81e1fdbfdc2ceb9d77dd1db4f7568d3d4af
   echo $(date)
 
-  # This function increments the day.
-  # NOTE: it changes y, m, d, and D, even in the scope of this shell script!
-  next_date $y $m $d
+  if [ $blow_ups -eq 0 ] ; then
+    # This function increments the day.
+    # NOTE: it changes y, m, d, and D, even in the scope of this shell script!
+    next_date $y $m $d
+    blow_ups=0 # reset the blow up counter
+  fi
 
-done
+done # end of while loop
 
