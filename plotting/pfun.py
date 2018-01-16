@@ -22,11 +22,9 @@ import zfun
 
 import numpy as np
 
-import os
-which_home = os.environ.get("HOME") # This works even when called by cron.
-if which_home == '/Users/PM5': # mac version
+if Ldir['lo_env'] == 'pm_mac': # mac version
     pass
-elif which_home == '/home/parker': # fjord version
+else: # regular (remote, linux) version
     import matplotlib as mpl
     mpl.use('Agg')
 
@@ -58,10 +56,10 @@ def dar(ax):
     yav = (yl[0] + yl[1])/2
     ax.set_aspect(1/np.sin(np.pi*yav/180))
 
-def add_coast(ax, dir0=Ldir['data']):
+def add_coast(ax, dir0=Ldir['data'], color='k'):
     fn = dir0 + 'coast/coast_pnw.p'
     C = pd.read_pickle(fn)
-    ax.plot(C['lon'].values, C['lat'].values, '-k', linewidth=0.5)
+    ax.plot(C['lon'].values, C['lat'].values, '-', color=color, linewidth=0.5)
 
 def get_coast(dir0=Ldir['data']):
     fn = dir0 + 'coast/coast_pnw.p'
@@ -74,8 +72,10 @@ def auto_lims(fld):
     """
     A convenience function for automatically setting color limits.
     Input: a numpy array (masked OK)
-    Output: tuple of good-guess colorsclale limits for a pcolormesh plot.
+    Output: tuple of good-guess colorscale limits for a pcolormesh plot.    
     """
+    from warnings import filterwarnings
+    filterwarnings('ignore') # skip some warning messages
     flo = np.nanmax([np.nanmean(fld) - 3*np.nanstd(fld), np.nanmin(fld)])
     fhi = np.nanmin([np.nanmean(fld) + 3*np.nanstd(fld), np.nanmax(fld)])
     return (flo, fhi)
@@ -130,9 +130,11 @@ def add_map_field(ax, ds, varname, slev=-1, vlims=(), cmap='rainbow',
     cs = ax.pcolormesh(x, y, v*fac, vmin=vlims[0], vmax=vlims[1], cmap=cmap, alpha=alpha)
     return cs, vlims
 
-def add_velocity_vectors(ax, ds, fn, v_scl=3, v_leglen=0.5, nngrid=80, zlev=0):
+def add_velocity_vectors(ax, ds, fn, v_scl=3, v_leglen=0.5, nngrid=80, zlev=0, center=(.7,.05)):
     # v_scl: scale velocity vector (smaller to get longer arrows)
     # v_leglen: m/s for velocity vector legend
+    xc = center[0]
+    yc = center[1]
     # GET DATA
     G = zrfun.get_basic_info(fn, only_G=True)
     if zlev == 0:
@@ -166,14 +168,14 @@ def add_velocity_vectors(ax, ds, fn, v_scl=3, v_leglen=0.5, nngrid=80, zlev=0):
     # plot velocity vectors
     ax.quiver(xx[mask], yy[mask], uu[mask], vv[mask],
         units='y', scale=v_scl, scale_units='y', color='k')
-    ax.quiver([.7, .7] , [.05, .05], [v_leglen, v_leglen],
+    ax.quiver([xc, xc] , [yc, yc], [v_leglen, v_leglen],
               [v_leglen, v_leglen],
         units='y', scale=v_scl, scale_units='y', color='k',
         transform=ax.transAxes)
-    ax.text(.75, .05, str(v_leglen) + ' $ms^{-1}$',
+    ax.text(xc+.05, yc, str(v_leglen) + ' $ms^{-1}$',
         horizontalalignment='left', transform=ax.transAxes)
 
-def add_windstress_flower(ax, ds, t_scl=0.2, t_leglen=0.1):
+def add_windstress_flower(ax, ds, t_scl=0.2, t_leglen=0.1, center=(.85,.25)):
     # ADD MEAN WINDSTRESS VECTOR
     # t_scl: scale windstress vector (smaller to get longer arrows)
     # t_leglen: # Pa for wind stress vector legend
@@ -181,19 +183,21 @@ def add_windstress_flower(ax, ds, t_scl=0.2, t_leglen=0.1):
     tauy = ds['svstr'][:].squeeze()
     tauxm = taux.mean()
     tauym = tauy.mean()
-    ax.quiver([.85, .85] , [.25, .25], [tauxm, tauxm], [tauym, tauym],
+    x = center[0]
+    y = center[1]
+    ax.quiver([x, x] , [y, y], [tauxm, tauxm], [tauym, tauym],
         units='y', scale=t_scl, scale_units='y', color='k',
         transform=ax.transAxes)
     tt = 1./np.sqrt(2)
     t_alpha = 0.3
-    ax.quiver([.85, .85] , [.25, .25],
+    ax.quiver([x, x] , [y, y],
         t_leglen*np.array([0,tt,1,tt,0,-tt,-1,-tt]),
         t_leglen*np.array([1,tt,0,-tt,-1,-tt,0,tt]),
         units='y', scale=t_scl, scale_units='y', color='k', alpha=t_alpha,
         transform=ax.transAxes)
-    ax.text(.85, .12,'Windstress',
+    ax.text(x, y-.13,'Windstress',
         horizontalalignment='center', alpha=t_alpha, transform=ax.transAxes)
-    ax.text(.85, .15, str(t_leglen) + ' Pa',
+    ax.text(x, y-.1, str(t_leglen) + ' Pa',
         horizontalalignment='center', alpha=t_alpha, transform=ax.transAxes)
 
 def add_info(ax, fn, fs=12):
@@ -468,6 +472,24 @@ def get_section(ds, vn, x, y, in_dict):
     v3['distf'][1:-1,:] = v3['dist']
     v3['distf'][-1,:] = v3['dist'][-1,:]    
     
+    # attempt to skip over nan's
+    v3.pop('zr')
+    v3.pop('sectvar')
+    v3.pop('dist')
+    mask3 = ~np.isnan(v3['sectvarf'][:])
+    #print(mask3.shape)
+    mask2 = mask3[-1,:]
+    dist = dist[mask2]
+    NC = len(dist)
+    NR = mask3.shape[0]
+    for k in v2.keys():
+        #print('v2 key: ' + k)
+        v2[k] = v2[k][mask2]
+    for k in v3.keys():
+        #print('v3 key: ' + k)
+        v3[k] = v3[k][mask3]
+        v3[k] = v3[k].reshape((NR, NC))
+        #print(v3[k].shape)
     
     return v2, v3, dist, idist0
 

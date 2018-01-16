@@ -2,15 +2,22 @@
 Functions for LiveOcean.
 """
 
+# this bit of magic lets us know where this program lives
+# and so allows us to find get_lo_info.sh and lo_info.csv
+import os 
+alp = os.path.dirname(os.path.realpath(__file__))
+
 def Lstart(gridname='BLANK', tag='BLANK'):
     """
     This is to set environment variables in the LiveOcean system
-    using values in a csv file.  It is similar to Lstart.m in the
+    using values in the dict "Ldir".  It is similar to Lstart.m in the
     MATLAB code, but it returns a dictionary instead of a structure.
 
     We use input parameters to allow for different gridnames and tags to
     coexist.
     """
+    print(alp)
+    
     # put top level information from input into a dict
     Ldir = dict()
     Ldir['gridname'] = gridname
@@ -35,17 +42,20 @@ def Lstart(gridname='BLANK', tag='BLANK'):
         Ldir['parent'] = '/pmr4/eab32/'
         Ldir['roms'] = Ldir['parent'] + 'LiveOcean_ROMS/'
         Ldir['which_matlab'] = '/usr/local/bin/matlab'
+    
+    import subprocess
+    if os.path.isfile(alp + '/user_get_lo_info.sh'): 
+        subprocess.call([alp + '/user_get_lo_info.sh'])
     else:
-        print('Trouble filling out environment variables in Ldir')
+        subprocess.call([alp + '/get_lo_info.sh'])
+    Ldir_temp = csv_to_dict(alp + '/lo_info.csv')
+    Ldir.update(Ldir_temp)
 
     # and add a few more things
     Ldir['gtag'] = Ldir['gridname'] + '_' + Ldir['tag']
-    Ldir['LO'] = Ldir['parent'] + 'LiveOcean/'
-    Ldir['LOo'] = Ldir['parent'] + 'LiveOcean_output/'
-    Ldir['data'] = Ldir['parent'] + 'LiveOcean_data/'
     Ldir['grid'] = Ldir['data'] + 'grids/' + Ldir['gridname'] + '/'
     Ldir['forecast_days'] = 3
-
+    
     return Ldir
 
 def make_dir(dirname, clean=False):
@@ -94,38 +104,13 @@ def run_worker(Ldir, worker_type='matlab'):
             Ldir['run_type'] + "\',\'" +
             Ldir['LOogf_f'] + "\')")
         cmd = Ldir['which_matlab']
-        run_cmd = [cmd, "-nojvm", "-nodisplay", "-r", func, "&"]
-        proc = subprocess.Popen(run_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        out, err = proc.communicate() # "out" is the screen output of the matlab code
-        print(out.decode()) # this ends up as part of the make_forcing_main.py screen output
+        run_cmd = [cmd, "-nojvm", "-nodisplay", "-r", func, "&"]        
+        proc = subprocess.run(run_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        print('\n-main: screen output from worker-')
+        print(proc.stdout.decode())
     else:
         print('other worker types not implemented yet')
-        
-def run_worker_post(Ldir, worker_type='matlab'):
-    # run the worker code using subprocess
-    #
-    # Passes an extra piece of information: an "indir" used by the
-    # carbon post-processing code. Eventually I may want to separate
-    # out the forcing things from the post-processing things.
-    #
-    if worker_type == 'matlab':
-        # pass arguments to a matlab program
-        import subprocess
-        
-        func = ("make_forcing_worker(\'" +
-            Ldir['gridname'] + "\',\'" +
-            Ldir['tag'] + "\',\'" +
-            Ldir['date_string'] + "\',\'" +
-            Ldir['run_type'] + "\',\'" +
-            Ldir['indir'] + "\',\'" +
-            Ldir['LOogf_f'] + "\')")
-        cmd = Ldir['which_matlab']
-        run_cmd = [cmd, "-nojvm", "-nodisplay", "-r", func, "&"]
-        proc = subprocess.Popen(run_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        out, err = proc.communicate() # "out" is the screen output of the matlab code
-        print(out.decode()) # this ends up as part of the make_forcing_main.py screen output
-    else:
-        print('other worker types not implemented yet')
+
 
 def datetime_to_modtime(dt):
     # This is where we define how time will be treated

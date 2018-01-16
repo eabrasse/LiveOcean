@@ -7,31 +7,22 @@ but it is only for plotting to files, not the screen:
 python pan_plot.py -x lobio3 -d 2013.01.02 -fno test.png -lt low_pass -pt P_basic
 
 Running from the terminal on my mac, and making a movie:
-    
-python pan_plot.py -g aestus1 -t A1 -x ae1 -d 2013.02.07 -lt hindcast -pt P_sectA -mov True
 
-python pan_plot.py -g aestus1 -t A1 -x ae1 -d 2013.02.01 -lt hindcast -pt P_sectA -mov True -nd 13
-
-Running for MERHAB from the linux command line on mac or fjord,
-BUT right now it has to be run from LiveOcean/plotting/
-    
-python /data1/parker/LiveOcean/plotting/pan_plot.py -g cascadia1 -t base -x lobio1 -lt merhab -pt P_tracks_MERHAB
+python pan_plot.py -g aestus1 -t A1 -x ae1 -d 2013.02.07 -lt backfill -pt P_sectA -mov True
+python pan_plot.py -g aestus1 -t A1 -x ae1 -d 2013.02.01 -lt backfill -pt P_sectA -mov True -nd 13
 
 Running from the ipython command line:
+(but for some reason the movei code does not work when run from spyder)
 
-cd /Users/PM5/Documents/LiveOcean/plotting
-
+cd ~/Documents/LiveOcean/plotting
 run pan_plot.py
-
 run pan_plot.py -g aestus1 -t A1 -x ae1 -d 2013.02.07
-
 run pan_plot.py -g cas1 -t f1 -x r820 -d 2013.01.01 -hs 25
-
 run pan_plot.py -x lobio3 -d 2013.01.02 -fno test.png -lt low_pass -pt P_basic
-
 run pan_plot.py -g aestus1 -t A1 -x ae1 -d 2013.02.07 -lt backfill -pt P_sectA -mov True
-
 run pan_plot.py -g cascadia1 -t base -x lobio1 -d 2017.05.18 -lt snapshot -pt P_tracks
+run pan_plot.py -d 2017.05.18 -lt merhab -pt P_tracks_MERHAB -mov True
+run pan_plot.py -g big1 -t v0 -x twodee -d 2013.01.08 -hs 07 -lt snapshot -pt P_basic2D
 
 """
 
@@ -56,7 +47,7 @@ parser.add_argument('-t', '--tag', nargs='?', type=str,
 parser.add_argument('-x', '--ex_name', nargs='?', type=str,
                     default='lobio1')
 parser.add_argument('-d', '--date_string', nargs='?', type=str,
-                    default='2017.05.11')
+                    default='2017.08.07')
 parser.add_argument('-hs', '--hour_string', nargs='?', type=str,
                     default='02')
 parser.add_argument('-nd', '--num_days', nargs='?', type=int,
@@ -140,24 +131,25 @@ def make_fn_list(dt0, dt1, Ldir, hourmax=24):
     return fn_list
 
 #%% choose which file(s) to plot
-if list_type == 'snapshot' and plot_type != 'P_tracks_MERHAB':
+if list_type == 'snapshot':
     # return a single default file name in the list
     fn_list = [Ldir['roms'] + 'output/' + Ldir['gtagex'] + '/' +
                'f' + args.date_string +
                '/ocean_his_00' + args.hour_string + '.nc']
 elif plot_type == 'P_tracks_MERHAB':
-    if list_type == 'merhab':
-        # return a single file name for today's forecast
-        dt = datetime.now()
-        args.date_string = dt.strftime('%Y.%m.%d')
-    elif list_type == 'snapshot':
-        pass # use args.date_string
-    fn_list = [Ldir['roms'] + 'output/' + Ldir['gtagex'] + '/' +
-               'f' + args.date_string + '/ocean_his_0002.nc']
-    args.fn_out = (Ldir['LOo'] + 'plots/merhab_tracks_'
-                   + args.date_string + '.png')
-    #print(args.fn_out)
-elif list_type == 'hindcast':
+    # enforce list_type
+    if list_type != 'merhab':
+        print('Need to use list_type=merhab for plot_type=P_tracks_MERHAB')
+    # get a list of all but the first input file
+    in_dir = (Ldir['roms'] + 'output/' + Ldir['gtagex'] + '/' +
+           'f' + args.date_string + '/')
+    fn_list_raw = os.listdir(in_dir)
+    fn_list = [(in_dir + ff) for ff in fn_list_raw if 'ocean_his' in ff]
+    fn_list.sort()
+    # testing - make a shorter list
+    #fn_list = fn_list[:10]
+    fn_list.pop(0) # remove the first hour
+elif list_type == 'backfill':
     fn_list = make_fn_list(dt0,dt1,Ldir)
 elif list_type == 'forecast':
     dt0 = datetime.now()
@@ -229,8 +221,9 @@ if len(args.fn_out) == 0:
             jj += 1
         # and make a movie
         if args.make_movie:
-            ff_str = ("ffmpeg -r 8 -pattern_type glob -i " + 
-            " '"+outdir+"*.png' -c:v libx264 -pix_fmt yuv420p -crf 25 "+outdir+"movie.mp4")
+            ff_str = ("ffmpeg -r 8 -i " + 
+            outdir+"plot_%04d.png -vcodec libx264 -pix_fmt yuv420p -crf 25 "
+            +outdir+"movie.mp4")
             os.system(ff_str)        
 else:
     # plot a single image to a file

@@ -69,7 +69,8 @@ def get_tracks(fn_list, plon0, plat0, pcs0, dir_tag,
     for pot in rot[:-1]:
 
         if np.mod(counter,24) == 0:
-            print(' - time %d out of %d' % (counter, nrot))
+            pass
+            #print(' - time %d out of %d' % (counter, nrot))
 
         # get time indices
         it0, it1, frt = zfun.get_interpolant(
@@ -137,7 +138,7 @@ def get_tracks(fn_list, plon0, plat0, pcs0, dir_tag,
 
                 # add windage, calculated from the middle time
                 if (surface == True) and (windage > 0):
-                    Vwind = get_wind(vn_list_wind, ds0, ds1, plon, plat, pcs, R, frmid)
+                    Vwind = get_wind(vn_list_wind, ds0, ds1, plon, plat, pcs, R, frmid, surface)
                     Vwind3 = np.concatenate((windage*Vwind,np.zeros((NP,1))),axis=1)
                 else:
                     Vwind3 = np.zeros((NP,3))
@@ -158,7 +159,7 @@ def get_tracks(fn_list, plon0, plat0, pcs0, dir_tag,
 
                 # add windage, calculated from the middle time
                 if (surface == True) and (windage > 0):
-                    Vwind = get_wind(vn_list_wind, ds0, ds1, plon, plat, pcs, R, frmid)
+                    Vwind = get_wind(vn_list_wind, ds0, ds1, plon, plat, pcs, R, frmid, surface)
                     Vwind3 = np.concatenate((windage*Vwind,np.zeros((NP,1))),axis=1)
                 else:
                     Vwind3 = np.zeros((NP,3))
@@ -232,13 +233,13 @@ def get_vel(vn_list_vel, vn_list_zh, ds0, ds1, plon, plat, pcs, R, frac, surface
 
     return V, ZH
 
-def get_wind(vn_list_wind, ds0, ds1, plon, plat, pcs, R, frac):
+def get_wind(vn_list_wind, ds0, ds1, plon, plat, pcs, R, frac, surface):
     # get the wind velocity at an arbitrary
     # time between two saves
     # "frac" is the fraction of the way between the times of ds0 and ds1
     # 0 <= frac <= 1
-    V0 = get_V(vn_list_wind, ds0, plon, plat, pcs, R)
-    V1 = get_V(vn_list_wind, ds1, plon, plat, pcs, R)
+    V0 = get_V(vn_list_wind, ds0, plon, plat, pcs, R, surface)
+    V1 = get_V(vn_list_wind, ds1, plon, plat, pcs, R, surface)
     V0[np.isnan(V0)] = 0.0
     V1[np.isnan(V1)] = 0.0
     V = (1 - frac)*V0 + frac*V1
@@ -383,7 +384,7 @@ def get_V(vn_list, ds, plon, plat, pcs, R, surface):
 def get_fn_list(idt, Ldir):
     if Ldir['gtagex'] == 'D2005_his':
         # Other ROMS runs version
-        indir = '/Users/PM5/Documents/roms/output/' + Ldir['gtagex'] + '/'
+        indir = Ldir['parent'] + 'roms/output/' + Ldir['gtagex'] + '/'
         save_num_list = range(1,365*24)
         save_dt_list = []
         dt00 = datetime(2005,1,1)

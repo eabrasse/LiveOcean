@@ -9,14 +9,15 @@ Module of plotting functions.
 import numpy as np
 import netCDF4 as nc
 
-import os
-which_home = os.environ.get("HOME") # This works even when called by cron.
-if which_home == '/Users/PM5': # mac version
+import Lfun
+Ldir = Lfun.Lstart()
+if Ldir['lo_env'] == 'pm_mac': # mac version
     pass
-elif which_home == '/home/parker': # fjord version
+else: # fjord version
     import matplotlib as mpl
     mpl.use('Agg')
 import matplotlib.pyplot as plt
+import pickle
 
 import cmocean as cmo
 
@@ -53,7 +54,7 @@ def get_in_dict(plot_type):
     in_dict['vlims'] = vlims
         
     # OTHER
-    in_dict['z_level'] = -500 # z level to plot
+    in_dict['z_level'] = -250 # z level to plot
         
     return in_dict
 
@@ -131,11 +132,24 @@ def P_basic(in_dict):
     out_dict['vlims'] = vlims
 
     # PLOT CODE
+    
+    # HACKS
+    auto_vlims = False
+    #
+    new_vlims = True
+    if new_vlims==True:
+        vlims['salt'] = (24,34)#(28, 34)
+        vlims['temp'] = (5,11)
+        
     # panel 1
     vn = 'salt'
     tstr = 'Surface ' + tstr_dict[vn]
     ax = fig.add_subplot(121)
     vn = 'salt'
+    
+    if auto_vlims:
+        vlims[vn] = ()
+    
     cs, out_dict['vlims'][vn] = pfun.add_map_field(ax, ds, vn,
             vlims=vlims[vn], cmap=cmap_dict[vn], fac=fac_dict[vn])
     fig.colorbar(cs)
@@ -151,6 +165,10 @@ def P_basic(in_dict):
     # panel 2
     ax = fig.add_subplot(122)
     vn = 'temp'
+    
+    if auto_vlims:
+        vlims[vn] = ()
+    
     tstr = 'Surface ' + tstr_dict[vn]
     cs, out_dict['vlims'][vn] = pfun.add_map_field(ax, ds, vn,
             vlims=vlims[vn], cmap=cmap_dict[vn], fac=fac_dict[vn])
@@ -163,6 +181,213 @@ def P_basic(in_dict):
     ax.set_title(tstr + units_dict[vn])
     pfun.add_velocity_vectors(ax, ds, in_dict['fn'])
     
+    # FINISH
+    ds.close()
+    if len(in_dict['fn_out']) > 0:
+        plt.savefig(in_dict['fn_out'])
+        plt.close()
+    else:
+        plt.show()
+        pfun.topfig()
+    return out_dict
+
+def P_salish(in_dict):
+    # like basic, but the second panel focuses on the Salish Sea
+
+    # START
+    fig = plt.figure(figsize=figsize)
+    ds = nc.Dataset(in_dict['fn'])
+    vlims = in_dict['vlims'].copy()
+    out_dict['vlims'] = vlims
+
+    # PLOT CODE
+    
+    # HACKS
+    auto_vlims = False
+    #
+    new_vlims = True
+    if new_vlims==True:
+        vlims['salt'] = (24,34)#(28, 34)
+        vlims['temp'] = (5,11)
+        
+    # panel 1
+    vn = 'salt'
+    tstr = 'Surface ' + tstr_dict[vn]
+    ax = fig.add_subplot(121)
+    vn = 'salt'
+    
+    if auto_vlims:
+        vlims[vn] = ()
+    
+    cs, out_dict['vlims'][vn] = pfun.add_map_field(ax, ds, vn,
+            vlims=vlims[vn], cmap=cmap_dict[vn], fac=fac_dict[vn])
+    fig.colorbar(cs)
+    pfun.add_bathy_contours(ax, ds, txt=True)
+    pfun.add_coast(ax)
+    ax.axis(pfun.get_aa(ds))
+    pfun.dar(ax)
+    ax.set_xlabel('Longitude')
+    ax.set_ylabel('Latitude')
+    ax.set_title(tstr + units_dict[vn])
+    pfun.add_info(ax, in_dict['fn'])
+    pfun.add_windstress_flower(ax, ds)
+    # panel 2
+    ax = fig.add_subplot(122)
+    vn = 'salt'
+    
+    if auto_vlims:
+        vlims[vn] = ()
+    
+    tstr = 'Surface ' + tstr_dict[vn]
+    cs, out_dict['vlims'][vn] = pfun.add_map_field(ax, ds, vn,
+            vlims=(26,32), cmap=cmap_dict[vn], fac=fac_dict[vn])
+    fig.colorbar(cs)
+    pfun.add_bathy_contours(ax, ds)
+    pfun.add_coast(ax)
+    ax.axis([-124, -122, 47, 49.5])
+    pfun.dar(ax)
+    ax.set_xlabel('Longitude')
+    ax.set_title(tstr + units_dict[vn])
+    #pfun.add_velocity_vectors(ax, ds, in_dict['fn'])
+    
+    # FINISH
+    ds.close()
+    if len(in_dict['fn_out']) > 0:
+        plt.savefig(in_dict['fn_out'])
+        plt.close()
+    else:
+        plt.show()
+        pfun.topfig()
+    return out_dict
+
+def P_basic2D(in_dict):
+    # For 2D fields.
+
+    # START
+    fig = plt.figure(figsize=(20,8))
+    ds = nc.Dataset(in_dict['fn'])
+    vlims = in_dict['vlims'].copy()
+    out_dict['vlims'] = vlims
+
+    # PLOT CODE
+    # panel 1
+    
+    ax = fig.add_subplot(131)
+    # we do this one by hand because zeta is not a masked array
+    vn = 'zeta'
+    x = ds['lon_psi'][:]
+    y = ds['lat_psi'][:]
+    v = ds[vn][0, 1:-1, 1:-1].squeeze()
+    m = ds['mask_rho'][1:-1, 1:-1].squeeze()
+    vm = np.ma.masked_where(m==0, v)
+    vlims = pfun.auto_lims(vm)
+    cs = ax.pcolormesh(x, y, vm, vmin=vlims[0], vmax=vlims[1], cmap='rainbow')
+    out_dict['vlims'][vn] = vlims
+    fig.colorbar(cs)
+    pfun.add_bathy_contours(ax, ds, txt=True)
+    pfun.add_coast(ax)
+    ax.axis(pfun.get_aa(ds))
+    pfun.dar(ax)
+    ax.set_xlabel('Longitude')
+    ax.set_ylabel('Latitude')
+    ax.set_title(vn)
+    pfun.add_info(ax, in_dict['fn'])
+    
+    # panel 2
+    ax = fig.add_subplot(132)
+    vn = 'ubar'
+    x = ds['lon_u'][:]
+    y = ds['lat_u'][:]
+    v = ds[vn][0, :, :].squeeze()
+    m = ds['mask_u'][:, :].squeeze()
+    vm = np.ma.masked_where(m==0, v)
+    #vlims = pfun.auto_lims(vm)
+    vlims = (vm.min(), vm.max())
+    cs = ax.pcolormesh(x, y, vm, vmin=vlims[0], vmax=vlims[1], cmap='rainbow')
+    out_dict['vlims'][vn] = vlims
+    fig.colorbar(cs)
+    pfun.add_bathy_contours(ax, ds)
+    pfun.add_coast(ax)
+    ax.axis(pfun.get_aa(ds))
+    pfun.dar(ax)
+    ax.set_xlabel('Longitude')
+    ax.set_title(vn)
+    
+    # panel 3
+    ax = fig.add_subplot(133)
+    vn = 'vbar'
+    x = ds['lon_v'][:]
+    y = ds['lat_v'][:]
+    v = ds[vn][0, :, :].squeeze()
+    m = ds['mask_v'][:, :].squeeze()
+    vm = np.ma.masked_where(m==0, v)
+    #vlims = pfun.auto_lims(vm)
+    vlims = (vm.min(), vm.max())
+    cs = ax.pcolormesh(x, y, vm, vmin=vlims[0], vmax=vlims[1], cmap='rainbow')
+    out_dict['vlims'][vn] = vlims
+    fig.colorbar(cs)
+    pfun.add_bathy_contours(ax, ds)
+    pfun.add_coast(ax)
+    ax.axis(pfun.get_aa(ds))
+    pfun.dar(ax)
+    ax.set_xlabel('Longitude')
+    ax.set_title(vn)
+    
+    # FINISH
+    ds.close()
+    if len(in_dict['fn_out']) > 0:
+        plt.savefig(in_dict['fn_out'])
+        plt.close()
+    else:
+        plt.show()
+        pfun.topfig()
+    return out_dict
+
+def P_basicN(in_dict):
+    # Like P_basic, but optimized for the new nested grid sal0
+
+    # START
+    fig = plt.figure(figsize=(16,8))
+    ds = nc.Dataset(in_dict['fn'])
+    vlims = in_dict['vlims'].copy()
+    out_dict['vlims'] = vlims
+
+    # PLOT CODE
+    #depth_levs = [50, 100, 150, 200]
+    vlims['salt'] = (25,32)
+    vlims['temp'] = (6,7.5)
+    # panel 1
+    vn = 'salt'
+    tstr = 'Surface ' + tstr_dict[vn]
+    ax = fig.add_subplot(121)
+    vn = 'salt'
+    cs, out_dict['vlims'][vn] = pfun.add_map_field(ax, ds, vn,
+            vlims=vlims[vn], cmap=cmap_dict[vn], fac=fac_dict[vn])
+    fig.colorbar(cs)
+    #pfun.add_bathy_contours(ax, ds, depth_levs=depth_levs)
+    pfun.add_coast(ax)
+    ax.axis(pfun.get_aa(ds))
+    pfun.dar(ax)
+    ax.set_xlabel('Longitude')
+    ax.set_ylabel('Latitude')
+    ax.set_title(tstr + units_dict[vn])
+    pfun.add_info(ax, in_dict['fn'])
+    #pfun.add_windstress_flower(ax, ds, t_scl=1, t_leglen=0.1, center=(.25,.4))
+    # panel 2
+    ax = fig.add_subplot(122)
+    vn = 'temp'
+    tstr = 'Surface ' + tstr_dict[vn]
+    cs, out_dict['vlims'][vn] = pfun.add_map_field(ax, ds, vn,
+            vlims=vlims[vn], cmap='rainbow', fac=fac_dict[vn])
+    fig.colorbar(cs)
+    #pfun.add_bathy_contours(ax, ds, depth_levs=depth_levs)
+    pfun.add_coast(ax)
+    ax.axis(pfun.get_aa(ds))
+    pfun.dar(ax)
+    ax.set_xlabel('Longitude')
+    ax.set_title(tstr + units_dict[vn])
+#    pfun.add_velocity_vectors(ax, ds, in_dict['fn'],
+#                              v_scl=10, v_leglen=1, nngrid=70, center=(.25,.4))    
     # FINISH
     ds.close()
     if len(in_dict['fn_out']) > 0:
@@ -192,8 +417,9 @@ def P_dive_vort(in_dict):
     dyp = zfun.interp2(x, y, G['lon_rho'], G['lat_rho'], G['DY'])
     vort = np.diff(v, axis=1)/dxp - np.diff(u, axis=0)/dyp
     
-    aa = [-122.95, -122.55, 47.6, 48]
-    scl = 5e-4
+    aa = pfun.get_aa(ds)
+    #aa = [-122.95, -122.55, 47.6, 48]
+    scl = 1e-4
     # panel 1
     ax = fig.add_subplot(121)
     cs = plt.pcolormesh(G['lon_psi'], G['lat_psi'], dive, cmap='bwr',
@@ -404,8 +630,9 @@ def P_layer(in_dict):
     vlims = in_dict['vlims'].copy()
     
     # set variables to plt
-    vn_list = ['Ldetritus','TIC']
-    #vn_list = ['salt', 'temp']
+    #vn_list = ['Ldetritus','TIC']
+    vn_list = ['salt', 'temp']
+    #vn_list = ['NO3', 'temp']
     for vn in vn_list: # use auto scaling
         vlims[vn] = ()
     # and override
@@ -597,13 +824,26 @@ def P_sect(in_dict):
     else:
         import Lfun
         Ldir = Lfun.Lstart()
-        tracks_path = Ldir['data'] + 'tracks/'
-        which_track = 'jdf2psTrack'
-        zdeep = -400
+        tracks_path = Ldir['data'] + 'tracks_new/'
+        which_track = 'HC_north.p'
+        track_fn = tracks_path + which_track
+        zdeep = -120
         # get the track to interpolate onto
-        mat = matfun.loadmat(tracks_path + which_track + '.mat')
-        x = mat['x']
-        y = mat['y']
+        pdict = pickle.load(open(track_fn, 'rb'))
+        xx = pdict['lon_poly']
+        yy = pdict['lat_poly']
+        for ii in range(len(xx)-1):
+            x0 = xx[ii]
+            x1 = xx[ii+1]
+            y0 = yy[ii]
+            y1 = yy[ii+1]
+            nn = 20
+            if ii == 0:
+                x = np.linspace(x0, x1, nn)
+                y = np.linspace(y0,y1, nn)
+            else:
+                x = np.concatenate((x, np.linspace(x0, x1, nn)[1:]))
+                y = np.concatenate((y, np.linspace(y0, y1, nn)[1:]))
 
     v2, v3, dist, idist0 = pfun.get_section(ds, vn, x, y, in_dict)
 
@@ -612,19 +852,20 @@ def P_sect(in_dict):
     # panel 1
     ax = fig.add_subplot(1, 3, 1)
     cs, out_dict['vlims'][vn] = pfun.add_map_field(ax, ds, vn,
-            vlims=vlims[vn], cmap=cmap_dict[vn], fac=fac_dict[vn])
+            vlims=(24,32), cmap=cmap_dict[vn], fac=fac_dict[vn])
     #fig.colorbar(cs)
     pfun.add_bathy_contours(ax, ds)
     pfun.add_coast(ax)
-    ax.axis(pfun.get_aa(ds))
+    #ax.axis(pfun.get_aa(ds))
+    ax.axis([-123.25, -122.25, 47, 48.5])
     pfun.dar(ax)
     ax.set_xlabel('Longitude')
     ax.set_ylabel('Latitude')
     ax.set_title('Bathymetry and Section Track')
     pfun.add_info(ax, in_dict['fn'])
-    pfun.add_windstress_flower(ax, ds)
+    #pfun.add_windstress_flower(ax, ds)
     ax.plot(x, y, '-r', linewidth=2)
-    ax.plot(x[idist0], y[idist0], 'or', markersize=10, markerfacecolor='w',
+    ax.plot(x[idist0], y[idist0], 'or', markersize=5, markerfacecolor='w',
     markeredgecolor='r', markeredgewidth=2)
 
     # section
@@ -633,7 +874,8 @@ def P_sect(in_dict):
     ax.plot(dist, v2['zeta'], '-b', linewidth=1)
     ax.set_xlim(dist.min(), dist.max())
     ax.set_ylim(zdeep, 5)
-    vlims = pfun.auto_lims(v3['sectvarf'])
+    #vlims = pfun.auto_lims(v3['sectvarf'])
+    vlims=(29,31)
     cs = ax.pcolormesh(v3['distf'], v3['zrf'], v3['sectvarf'],
                        vmin=vlims[0], vmax=vlims[1], cmap=cmap_dict[vn])
     fig.colorbar(cs)
@@ -697,7 +939,8 @@ def P_sectA(in_dict):
     ax.plot(dist, v2['zeta'], '-b', linewidth=1)
     ax.set_xlim(dist.min(), dist.max())
     ax.set_ylim(-25, 2)
-    vlims = pfun.auto_lims(v3['sectvarf'])
+    #vlims = pfun.auto_lims(v3['sectvarf'])
+    vlims = vlims[vn]
     cs = ax.pcolormesh(v3['distf'], v3['zrf'], v3['sectvarf'],
                        vmin=vlims[0], vmax=vlims[1], cmap=cmap_dict[vn])
     #fig.colorbar(cs)
@@ -707,9 +950,9 @@ def P_sectA(in_dict):
     ax.set_ylabel('Z (m)')
     ax.set_title(vn)
     # add line to map plot
-    ax1.plot(x, y, '-r', linewidth=2)
-    ax1.plot(x[idist0], y[idist0], 'or', markersize=10, markerfacecolor='w',
-        markeredgecolor='r', markeredgewidth=2)
+    ax1.plot(x, y, '-k', linewidth=2)
+    ax1.plot(x[idist0], y[idist0], 'ok', markersize=10, markerfacecolor='w',
+        markeredgecolor='k', markeredgewidth=2)
 
     for ii in range(3):
         # cross-sections
@@ -720,9 +963,10 @@ def P_sectA(in_dict):
         ax = fig.add_subplot(3,3,ii+7)
         ax.plot(dist, v2['zbot'], '-k', linewidth=2)
         ax.plot(dist, v2['zeta'], '-b', linewidth=1)
-        ax.set_xlim(dist.min(), dist.max())
+        ax.set_xlim(0, 22.5)
+        #ax.set_xlim(dist.min(), dist.max())
         ax.set_ylim(-25, 2)
-        vlims = pfun.auto_lims(v3['sectvarf'])
+        #vlims = pfun.auto_lims(v3['sectvarf'])
         cs = ax.pcolormesh(v3['distf'], v3['zrf'], v3['sectvarf'],
                            vmin=vlims[0], vmax=vlims[1], cmap=cmap_dict[vn])
         #fig.colorbar(cs)
@@ -732,9 +976,9 @@ def P_sectA(in_dict):
         if ii==0:
             ax.set_ylabel('Z (m)')
         # add line to map plot
-        ax1.plot(x, y, '-r', linewidth=2)
-        ax1.plot(x[idist0], y[idist0], 'or', markersize=10, markerfacecolor='w',
-            markeredgecolor='r', markeredgewidth=2)
+        ax1.plot(x, y, '-k', linewidth=2)
+        ax1.plot(x[idist0], y[idist0], 'ok', markersize=10, markerfacecolor='w',
+            markeredgecolor='k', markeredgewidth=2)
             
     fig.tight_layout()
     
@@ -752,13 +996,10 @@ def P_sectA(in_dict):
 def P_tracks_MERHAB(in_dict):
     # Use tracker to create surface drifter tracks for MERHAB 
     # It automatically makes tracks for as long as there are
-    # hours in the folder.
-    
-    # should be run with "-lt snapshot" but then it overrides the specific
-    # time of the history file.
+    # hours in the folder, as a folder of movie frames.
 
     # START
-    fig = plt.figure(figsize=(6, 8))
+    fig = plt.figure(figsize=(12, 8))
     vlims = in_dict['vlims'].copy()
     out_dict['vlims'] = vlims
 
@@ -769,6 +1010,7 @@ def P_tracks_MERHAB(in_dict):
     if pth not in sys.path:
         sys.path.append(pth)
     import trackfun
+    import pickle
 
     # need to get Ldir, which means unpacking gtagex
     fn = in_dict['fn']
@@ -785,92 +1027,125 @@ def P_tracks_MERHAB(in_dict):
         if 'ocean_his' in item:
             fn_list.append(in_dir + item)
     fn_list.sort()
+    
+    # trim fn_list to end at the selected hour
+    fn_list_full = fn_list.copy() # but save the full list
+    fn_list = fn_list[:fn_list.index(fn)+1]
     # and estimate the number of days,
     ndays = round(len(fn_list)/24)
-    # and use the LAST file for the map field overlay
-    in_dict['fn'] = fn_list[-1]
+    # and use the CURRENT file for the map field overlay
     ds = nc.Dataset(in_dict['fn'])
-
-    # some run specifications
-    ic_name = 'test' # 'jdf' or 'cr' or etc.
-    dir_tag = 'forward' # 'forward' or 'reverse'
-    method = 'rk4' # 'rk2' or 'rk4'
-    surface = True # Boolean, True for trap to surface
-    windage = 0.0 # a small number >= 0 [0.02]
-    ndiv = 1 # number of divisions to make between saves for the integration
 
     G, S, T = zrfun.get_basic_info(in_dict['fn'])
     T0 = zrfun.get_basic_info(fn_list[0], only_T=True)
-    
-    # # Evenly spread over whole domain
-    # x0 = G['lon_rho'][0, 1]
-    # x1 = G['lon_rho'][0, -2]
-    # y0 = G['lat_rho'][1, 0]
-    # y1 = G['lat_rho'][-2, 0]
-    # nyp = 30
-    # mlr = np.pi*(np.mean([y0, y1]))/180
-    # xyRatio = np.cos(mlr) * (x1 - x0) / (y1 - y0)
-    # lonvec = np.linspace(x0, x1, (nyp * xyRatio).astype(int))
-    # latvec = np.linspace(y0, y1, nyp)
-    # lonmat, latmat = np.meshgrid(lonvec, latvec)
-    
-    nyp = 7
-    x0 = -126
-    x1 = -125
-    y0 = 48
-    y1 = 49
-    mlr = np.pi*(np.mean([y0, y1]))/180
-    xyRatio = np.cos(mlr) * (x1 - x0) / (y1 - y0)
-    lonvec = np.linspace(x0, x1, (nyp * xyRatio).astype(int))
-    latvec = np.linspace(y0, y1, nyp)
-    lonmat_1, latmat_1 = np.meshgrid(lonvec, latvec)
-    x0 = -125
-    x1 = -124
-    y0 = 44
-    y1 = 45
-    mlr = np.pi*(np.mean([y0, y1]))/180
-    xyRatio = np.cos(mlr) * (x1 - x0) / (y1 - y0)
-    lonvec = np.linspace(x0, x1, (nyp * xyRatio).astype(int))
-    latvec = np.linspace(y0, y1, nyp)
-    lonmat_2, latmat_2 = np.meshgrid(lonvec, latvec)
-    lonmat = np.concatenate((lonmat_1.flatten(), lonmat_2.flatten()))
-    latmat = np.concatenate((latmat_1.flatten(), latmat_2.flatten()))
-    plon00 = lonmat.flatten()
-    plat00 = latmat.flatten()
-    pcs00 = np.array([-.05]) # unimportant when surface=True
 
-    # save some things in Ldir
-    Ldir['gtagex'] = gtagex
-    Ldir['ic_name'] = ic_name
-    Ldir['dir_tag'] = dir_tag
-    Ldir['method'] = method
-    Ldir['surface'] = surface
-    Ldir['windage'] = windage
-    Ldir['ndiv'] = ndiv
+    if len(fn_list) == 2:
+        # only do the tracking at the start
+        
+        # some run specifications
+        ic_name = 'test' # 'jdf' or 'cr' or etc.
+        dir_tag = 'forward' # 'forward' or 'reverse'
+        method = 'rk4' # 'rk2' or 'rk4'
+        surface = True # Boolean, True for trap to surface
+        windage = 0.0 # a small number >= 0 [0.02]
+        ndiv = 1 # number of divisions to make between saves for the integration
 
-    # make the full IC vectors, which will have equal length
-    # (one value for each particle)
-    NSP = len(pcs00)
-    NXYP = len(plon00)
-    plon0 = plon00.reshape(NXYP,1) * np.ones((NXYP,NSP))
-    plat0 = plat00.reshape(NXYP,1) * np.ones((NXYP,NSP))
-    pcs0 = np.ones((NXYP,NSP)) * pcs00.reshape(1,NSP)
-    plon0 = plon0.flatten()
-    plat0 = plat0.flatten()
-    pcs0 = pcs0.flatten()
-
-    # DO THE TRACKING
-    import time
-    tt0 = time.time()
     
-    P, Gtr, Str = trackfun.get_tracks(fn_list, plon0, plat0, pcs0,
-                                  dir_tag, method, surface, ndiv, windage)
-    print('  took %0.1f seconds' % (time.time() - tt0))
+        # # Evenly spread over whole domain
+        # x0 = G['lon_rho'][0, 1]
+        # x1 = G['lon_rho'][0, -2]
+        # y0 = G['lat_rho'][1, 0]
+        # y1 = G['lat_rho'][-2, 0]
+        # nyp = 30
+        # mlr = np.pi*(np.mean([y0, y1]))/180
+        # xyRatio = np.cos(mlr) * (x1 - x0) / (y1 - y0)
+        # lonvec = np.linspace(x0, x1, (nyp * xyRatio).astype(int))
+        # latvec = np.linspace(y0, y1, nyp)
+        # lonmat, latmat = np.meshgrid(lonvec, latvec)
+    
+        if True:
+            # standard MERHAB version
+            nyp = 7
+            x0 = -126
+            x1 = -125
+            y0 = 48
+            y1 = 49
+            mlr = np.pi*(np.mean([y0, y1]))/180
+            xyRatio = np.cos(mlr) * (x1 - x0) / (y1 - y0)
+            lonvec = np.linspace(x0, x1, (nyp * xyRatio).astype(int))
+            latvec = np.linspace(y0, y1, nyp)
+            lonmat_1, latmat_1 = np.meshgrid(lonvec, latvec)
+            x0 = -125
+            x1 = -124
+            y0 = 44
+            y1 = 45
+            mlr = np.pi*(np.mean([y0, y1]))/180
+            xyRatio = np.cos(mlr) * (x1 - x0) / (y1 - y0)
+            lonvec = np.linspace(x0, x1, (nyp * xyRatio).astype(int))
+            latvec = np.linspace(y0, y1, nyp)
+            lonmat_2, latmat_2 = np.meshgrid(lonvec, latvec)
+            lonmat = np.concatenate((lonmat_1.flatten(), lonmat_2.flatten()))
+            latmat = np.concatenate((latmat_1.flatten(), latmat_2.flatten()))
+        else:
+            # new version with more release points
+            nyp = 35
+            x0 = -126
+            x1 = -124
+            y0 = 44
+            y1 = 49
+            mlr = np.pi*(np.mean([y0, y1]))/180
+            xyRatio = np.cos(mlr) * (x1 - x0) / (y1 - y0)
+            lonvec = np.linspace(x0, x1, (nyp * xyRatio).astype(int))
+            latvec = np.linspace(y0, y1, nyp)
+            lonmat, latmat = np.meshgrid(lonvec, latvec)
+
+            
+        plon00 = lonmat.flatten()
+        plat00 = latmat.flatten()
+        pcs00 = np.array([-.05]) # unimportant when surface=True
+
+        # save some things in Ldir
+        Ldir['gtagex'] = gtagex
+        Ldir['ic_name'] = ic_name
+        Ldir['dir_tag'] = dir_tag
+        Ldir['method'] = method
+        Ldir['surface'] = surface
+        Ldir['windage'] = windage
+        Ldir['ndiv'] = ndiv
+
+        # make the full IC vectors, which will have equal length
+        # (one value for each particle)
+        NSP = len(pcs00)
+        NXYP = len(plon00)
+        plon0 = plon00.reshape(NXYP,1) * np.ones((NXYP,NSP))
+        plat0 = plat00.reshape(NXYP,1) * np.ones((NXYP,NSP))
+        pcs0 = np.ones((NXYP,NSP)) * pcs00.reshape(1,NSP)
+        plon0 = plon0.flatten()
+        plat0 = plat0.flatten()
+        pcs0 = pcs0.flatten()
+
+        # DO THE TRACKING
+        import time
+        tt0 = time.time()
+    
+        P, Gtr, Str = trackfun.get_tracks(fn_list_full, plon0, plat0, pcs0,
+                                      dir_tag, method, surface, ndiv, windage)
+        print('  took %0.1f seconds' % (time.time() - tt0))
+        
+        fo = in_dict['fn_out']
+        out_dir = fo[:fo.rindex('/')+1]
+        out_fn = out_dir + 'tracks.p'
+        pickle.dump(P, open(out_fn, 'wb'))
+    else:
+        fo = in_dict['fn_out']
+        out_dir = fo[:fo.rindex('/')+1]
+        out_fn = out_dir + 'tracks.p'
+        P = pickle.load(open(out_fn, 'rb'))
 
     # PLOT CODE
 
     # panel 1
-    ax = fig.add_subplot(111)
+    ax = fig.add_subplot(121)
     vn = 'salt'
     tstr = 'Surface ' + tstr_dict[vn] +' and ' + str(ndays) + ' day Tracks'
     cs, out_dict['vlims'][vn] = pfun.add_map_field(ax, ds, vn,
@@ -885,7 +1160,6 @@ def P_tracks_MERHAB(in_dict):
     ax.set_xlabel('Longitude', fontsize=fs1)
     ax.set_ylabel('Latitude', fontsize=fs1)
     ax.set_title(tstr, fontsize=fs1)
-    
     
     fs = fs1 - 6
     ax.text(.98, .10, T0['tm'].strftime('%Y-%m-%d %H:%M'),
@@ -904,10 +1178,11 @@ def P_tracks_MERHAB(in_dict):
     # add the tracks
     c_start = 'w'; s_start = 4
     c_end = 'r'; s_end = 6
-    ax.plot(P['lon'], P['lat'], '-k', linewidth=2)
+    ntt = len(fn_list) -1
+    ax.plot(P['lon'][:ntt,:], P['lat'][:ntt,:], '-k', linewidth=2)
     ax.plot(P['lon'][0,:],P['lat'][0,:],'o'+c_start,
             markersize=s_start, alpha = 1, markeredgecolor='k')
-    ax.plot(P['lon'][-1,:],P['lat'][-1,:],'o'+c_end,
+    ax.plot(P['lon'][ntt,:],P['lat'][ntt,:],'o'+c_end,
             markersize=s_end, alpha = 1, markeredgecolor='k')
     
     # add info about the tracks    
@@ -923,6 +1198,22 @@ def P_tracks_MERHAB(in_dict):
             verticalalignment='center', fontstyle='italic', transform=ax.transAxes)
     ax.text(x1-.02, y1, 'end', horizontalalignment='right',
             verticalalignment='center', fontstyle='italic', transform=ax.transAxes)
+   
+    ax = fig.add_subplot(122)
+    vn = 'phytoplankton'
+    tstr = 'Surface ' + tstr_dict[vn]
+    cs, out_dict['vlims'][vn] = pfun.add_map_field(ax, ds, vn,
+           vlims=vlims[vn], cmap=cmap_dict[vn], fac=fac_dict[vn],
+           do_mask_salish=True)
+    fig.colorbar(cs)
+    pfun.add_bathy_contours(ax, ds, txt=False)
+    pfun.add_coast(ax)
+    ax.axis(pfun.get_aa(ds))
+    pfun.dar(ax)
+    fs1 = 16
+    ax.set_xlabel('Longitude', fontsize=fs1)
+    #ax.set_ylabel('Latitude', fontsize=fs1)
+    ax.set_title(tstr, fontsize=fs1)
    
     fig.tight_layout()
 

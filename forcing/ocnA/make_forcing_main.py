@@ -12,7 +12,7 @@ It is for Analytical runs.
 
 To test in python on mac:
 
-cd /Users/PM5/Documents/LiveOcean/forcing/ocnA
+cd ~/Documents/LiveOcean/forcing/ocnA
 
 run make_forcing_main.py -g aestus1 -t A1 -r backfill -d 2013.01.01
 
@@ -36,12 +36,22 @@ from datetime import datetime, timedelta
 start_time = datetime.now()
 out_dir = Ldir['LOogf_f']
 
+# quicky function to create a salinity field that increases linearly with depth
+def saltfun(G,S):
+    h = G['h']
+    zeta = 0.0*h
+    z = zrfun.get_z(h,zeta,S,only_rho=True)
+    salt = 30 - z/16
+    salt = np.tile(salt,[2,1,1,1])
+    return salt
+
 #%% make climatology
 
 # get grid and S info
 G = zrfun.get_basic_info(Ldir['grid'] + 'grid.nc', only_G=True)
 S_info_dict = Lfun.csv_to_dict(Ldir['grid'] + 'S_COORDINATE_INFO.csv')
 S = zrfun.get_S(S_info_dict)
+z = zrfun.get_z(
 
 # name output file
 clm_fn = out_dir + 'ocean_clm.nc'
@@ -97,7 +107,8 @@ vv[:] = 0
 vv = foo.createVariable('salt', float, ('salt_time', 's_rho', 'eta_rho', 'xi_rho'))
 vv.long_name = 'salinity climatology'
 vv.units = 'PSU'
-vv[:] = 35
+#vv[:] = 35
+vv[:] = saltfun(G,S)
 vv[:, :, :, 75:] = 0
 vv = foo.createVariable('temp', float, ('temp_time', 's_rho', 'eta_rho', 'xi_rho'))
 vv.long_name = 'potential temperature climatology'

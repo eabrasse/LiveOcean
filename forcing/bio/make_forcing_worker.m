@@ -10,7 +10,7 @@ function make_forcing_worker(gridname, tag, date_string, run_type, outdir)
 % tag = 'base';
 % date_string = '2014.03.11';
 % run_type = 'backfill';
-% outdir = '/Users/PM5/Desktop/';
+% outdir = '~/Desktop/';
 
 %%
 addpath('../../alpha'); Ldir = Lstart(gridname, tag);
@@ -27,10 +27,10 @@ grdname = [gdir,'grid.nc'];
 
 % define locations of existing ocn and riv files
 ocn_dir = 'ocn1';
-clmname = [Ldir.out,Ldir.gtag,'/f',date_string,'/',ocn_dir,'/ocean_clm_bio.nc'];
-bryname = [Ldir.out,Ldir.gtag,'/f',date_string,'/',ocn_dir,'/ocean_bry_bio.nc'];
-ininame = [Ldir.out,Ldir.gtag,'/f',date_string,'/',ocn_dir,'/ocean_ini_bio.nc'];
-rivname = [Ldir.out,Ldir.gtag,'/f',date_string,'/riv/rivers_bio.nc'];
+clmname = [Ldir.LOo,Ldir.gtag,'/f',date_string,'/',ocn_dir,'/ocean_clm_bio.nc'];
+bryname = [Ldir.LOo,Ldir.gtag,'/f',date_string,'/',ocn_dir,'/ocean_bry_bio.nc'];
+ininame = [Ldir.LOo,Ldir.gtag,'/f',date_string,'/',ocn_dir,'/ocean_ini_bio.nc'];
+rivname = [Ldir.LOo,Ldir.gtag,'/f',date_string,'/riv/rivers_bio.nc'];
 
 %%
 NO3_method='PL_Salt';

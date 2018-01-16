@@ -1,13 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Thu Sep 29 14:22:55 2016
-
-@author: PM5
-
-Plot results of tracker.
-
-Need to update with new plotting functions.
+Plot results of a particle tracking experiment.
 """
 
 # setup
@@ -24,79 +18,120 @@ if plp not in sys.path:
     sys.path.append(plp)
 import pfun
 
-import pickle
+import netCDF4 as nc4
 import numpy as np
 
 Ldir = Lfun.Lstart()
-indir0 = Ldir['LOo'] + 'tracks/'
 
-# choose the type of plot to make
-print('\n%s\n' % '** Choose directory to plot **')
+# Choose an experiment to plot from.
+indir0 = Ldir['LOo'] + 'tracks/'
 indir_list_raw = os.listdir(indir0)
 indir_list = []
 for d in indir_list_raw:
     if os.path.isdir(indir0 + d):
         indir_list.append(d)
-Npt = len(indir_list)
-indir_dict = dict(zip(range(Npt), indir_list))
+indir_list.sort()
+Npt = len(indir_list)#
+print('\n%s\n' % '** Choose Experiment to plot **')
 for npt in range(Npt):
     print(str(npt) + ': ' + indir_list[npt])
-my_npt = int(input('-- Input number -- '))
-indir = indir_dict[my_npt]
+my_npt = input('-- Experiment number (return = 0) --')
+if len(my_npt)==0:
+    my_npt = 0
+indir = indir_list[int(my_npt)] + '/'
 
-p_list = os.listdir(indir0 + indir)
+# Choose a release from this experiment.
+rel_list = [rel for rel in os.listdir(indir0 + indir) if 'release' in rel]
+rel_list.sort()
+Nrl = len(rel_list)
+print('\n%s\n' % '** Choose Release file to plot **')
+for nrl in range(Nrl):
+    print(str(nrl) + ': ' + rel_list[nrl])
+my_nrl = input('-- Release number (return = 0) -- ')
+if len(my_nrl)==0:
+    my_nrl = 0
+rel = rel_list[int(my_nrl)]
 
-p_list.sort()
-
-counter = 0
-P = dict()
-for p in p_list:
-
-    if counter == 0:
-        Pp, G, S, PLdir = pickle.load( open( indir0 + indir + '/' + p, 'rb' ) )
-        for k in Pp.keys():
-            P[k] = Pp[k]
-    else:
-        Pp, PLdir = pickle.load( open( indir0 + indir + '/' + p, 'rb' ) )
-        for k in Pp.keys():
-            if k == 'ot':
-                P[k] = np.concatenate((P[k], Pp[k][1:]), axis=0)
-            else:
-                P[k] = np.concatenate((P[k], Pp[k][1:,:]), axis=0)
-    counter += 1
+# get Datasets
+dsr = nc4.Dataset(indir0 + indir + rel)
+dsg = nc4.Dataset(indir0 + indir + 'grid.nc')
     
-NT, NP = P['lon'].shape
+NT, NP = dsr['lon'].shape
 
-dt_list = [Lfun.modtime_to_datetime(ot) for ot in P['ot']]
+# get a list of datetimes
+ot_vec = dsr['ot'][:]
+dt_list = [Lfun.modtime_to_datetime(ot) for ot in ot_vec]
 
-lonp = G['lon_psi']
-latp = G['lat_psi']
-
-aa = [lonp.min(), lonp.max(), latp.min(), latp.max()]
+# gather some fields, for convenience
+lonp = dsg['lon_psi'][:]
+latp = dsg['lat_psi'][:]
+hh = dsg['h'][:]
+maskr = dsg['mask_rho'][:]
+#
+u = dsr['u'][:]
+v = dsr['v'][:]
+w = dsr['w'][:]
+salt = dsr['salt'][:]
+temp = dsr['temp'][:]
+lon = dsr['lon'][:]
+lat = dsr['lat'][:]
+z = dsr['z'][:]
+zeta = dsr['zeta'][:]
+h = dsr['h'][:]
 
 # PLOTTING
 
-plt.close()
-fig = plt.figure(figsize=(12,12))
+# plt.close('all')
+fig = plt.figure(figsize=(12,8))
 
-ax = fig.add_subplot(111)
+# map
+#
+# set domain limits
+if False:
+    # plot full domain
+    aa = [lonp.min(), lonp.max(), latp.min(), latp.max()]
+else:
+    # automatically plot region of particles, with padding
+    pad = .02
+    aa = [lon.min() - pad, lon.max() + pad,
+    lat.min() - pad, lat.max() + pad]
+ax = fig.add_subplot(121)
+zm = -np.ma.masked_where(maskr==0, hh)
+plt.pcolormesh(lonp, latp, zm[1:-1, 1:-1], vmin=-100, vmax=0,
+    cmap='rainbow', alpha=.3)
 pfun.add_coast(ax)
 
-pfun.add_bathy_contours(ax, G, txt=True)
 ax.axis(aa)
 pfun.dar(ax)
 ax.set_xlabel('Longitude')
 ax.set_ylabel('Latitude')
-ax.text(.06, .04, ' '.join(p.split('_')),
-    verticalalignment='bottom', transform=ax.transAxes,
-    rotation='vertical')
+# add the tracks (packed [time, particle])
+ax.plot(lon, lat, '-k', linewidth=.2)
+ax.plot(lon[0,:], lat[0,:], 'og', alpha=.3)
+ax.plot(lon[-1,:], lat[-1,:], 'or', alpha=.3)
+ax.set_title(indir.strip('/'))
+# looking for bad values
+# zmask = (u==0) & (v==0)
+# ax.plot(lon[zmask], lat[zmask], '*r', markersize=12)
 
-# add the tracks
-ax.plot(P['lon'], P['lat'], '-k', alpha = 0.1)
-beach_mask = P['u'][-1,:] == 0
-ax.plot(P['lon'][:,beach_mask], P['lat'][:,beach_mask], '-r', linewidth=1)
-ax.plot(P['lon'][0,beach_mask],P['lat'][0,beach_mask],'or',
-        markersize=5, alpha = .4)
+nmask = np.isnan(salt)
+print('Number of nan salt values = ' + str(nmask.sum()))
+
+# time series
+td = (ot_vec - ot_vec[0])/86400
+tv_list = ['z', 'salt', 'temp']
+ntv = len(tv_list)
+for ii in range(ntv):
+    tv = tv_list[ii]
+    NC = 2
+    ax = fig.add_subplot(ntv,NC, (ii+1)*NC)
+    ax.plot(td, dsr[tv][:])
+    ax.text(.05, .05, tv, fontweight='bold', transform=ax.transAxes)
+    if ii == ntv-1:
+        ax.set_xlabel('Time (days)')
 
 plt.show()
-pfun.topfig()
+
+dsr.close()
+dsg.close()
+

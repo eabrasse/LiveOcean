@@ -1,4 +1,4 @@
-function make_forcing_worker(gridname, tag, date_string, run_type, indir, outdir)
+function make_forcing_worker(gridname, tag, date_string, run_type, indir, h0, h1, outdir)
 
 %% make_forcing_worker.m
 %
@@ -14,20 +14,14 @@ start_time = datenum(now);
 addpath('../../shared/seawater');
 addpath('../../shared'); % gives access to CO2SYS_PM.m
 
-%% create the output time vector
+%% Make a list of which history files to work on.
 
-if strcmp(run_type,'backfill')
-    hr_vec = 1:24;
-    %hr_vec = 1:2;
-    % these correspond to the hour of the day, but note that the his file
-    % number is one greater
-elseif strcmp(run_type,'forecast')
-    hr_vec = 1:72;
-    % this gives 72 hourly values
-    % (three days, including endpoint, but not hour zero)
+if strcmp(run_type,'backfill') | strcmp(run_type,'forecast')
+    h0 = str2num(h0);
+    h1 = str2num(h1);
+    hr_vec = [h0:h1];
 elseif strcmp(run_type,'low_passed')
     hr_vec = 1;
-    % a new option, that just works on low_passed.nc
 end
 
 %% loop over the hours
@@ -37,18 +31,18 @@ for tt = 1:length(hr_vec)
     if strcmp(run_type,'low_passed')
         fn = 'low_passed.nc';
     else
-        hr_num = hr_vec(tt) + 1;
+        hr_num = hr_vec(tt);
         hr_string = ['0000', num2str(hr_num)];
         hr_string = hr_string(end-3:end);
         fn = ['ocean_his_', hr_string, '.nc'];
     end
     
     infile = [indir,fn];
-    disp(' ')
+    disp('--output from worker--')
     disp(infile)
     
     % driver code for CO2SYS
-    % we make use mainly of the nc... convenience functions that are
+    % we make use mainly of the NetCDF convenience functions that are
     % now part of MATLAB
     
     % note that these are packed (x, y, z, t)
@@ -176,18 +170,4 @@ for tt = 1:length(hr_vec)
     
 end % end of hour loop
 
-%% things to use for checking result
-
-% Actually I'm not sure how we chack the result for success.  We don't 
-% make new files, just change existing ones.
-
-%% Final output
-datestr_format = 'yyyy.mm.dd HH:MM:SS';
-end_time = datenum(now);
-fid = fopen([outdir,'Info/process_status.csv'],'w');
-fprintf(fid,'%s\n',['start_time,',datestr(start_time, datestr_format)]);
-fprintf(fid,'%s\n',['end_time,',datestr(end_time, datestr_format)]);
-% for now assume it succeeded.
-fprintf(fid,'%s\n','result,success');
-fclose(fid);
 
