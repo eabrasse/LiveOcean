@@ -22,26 +22,6 @@ def Lstart(gridname='BLANK', tag='BLANK'):
     Ldir = dict()
     Ldir['gridname'] = gridname
     Ldir['tag'] = tag
-
-    # Build information on the directory structure.
-    import os
-    which_home = os.environ.get("HOME") # This works even when called by cron.
-    if which_home == '/Users/PM5': # mac version
-        Ldir['parent'] = '/Users/PM5/Documents/'
-        Ldir['roms'] = Ldir['parent'] + 'LiveOcean_roms/'
-        Ldir['which_matlab'] = '/Applications/MATLAB_R2015b.app/bin/matlab'
-    elif which_home == '/home/parker': # fjord version
-        Ldir['parent'] = '/data1/parker/'
-        Ldir['roms'] = '/pmr1/parker/LiveOcean_roms/'
-        Ldir['which_matlab'] = '/usr/local/bin/matlab'
-    elif which_home == '/Users/elizabethbrasseale': #laptop
-        Ldir['parent'] = '/Users/elizabethbrasseale/'
-        Ldir['roms'] = Ldir['parent'] + 'LiveOcean_ROMS/'
-        Ldir['which_matlab'] = '/Applications/MATLAB_R2016b.app/bin/matlab'
-    elif which_home == '/home/eab32': #eab32@fjord
-        Ldir['parent'] = '/pmr4/eab32/'
-        Ldir['roms'] = Ldir['parent'] + 'LiveOcean_ROMS/'
-        Ldir['which_matlab'] = '/usr/local/bin/matlab'
     
     import subprocess
     if os.path.isfile(alp + '/user_get_lo_info.sh'): 

@@ -61,6 +61,24 @@ elif [ $HOME == "/usr/lusers/pmacc" ] ; then
   LOo=$parent"LiveOcean_output/"
   roms=$parent"LiveOcean_roms/"
   which_matlab="/usr/local/bin/matlab"
+
+elif [ $HOME == "/Users/elizabethbrasseale" ] ; then
+  lo_env='eb_mac'
+  parent=$HOME"/"
+  LO=$parent"LiveOcean/"
+  data=$parent"LiveOcean_data/"
+  LOo=$parent"LiveOcean_output/"
+  roms=$parent"LiveOcean_roms/"
+  which_matlab="/Applications/MATLAB_R2016b.app/bin/matlab"
+
+elif [ $HOME == "/home/eab32" ] && [[ $HOSTNAME == *"fjord"* ]] ; then
+  lo_env='eb_fjord'
+  parent="/pmr4/eab32/"
+  LO=$parent"LiveOcean/"
+  data=$parent"LiveOcean_data/"
+  LOo=$parent"LiveOcean_output/"
+  roms="/pmr1/parker/LiveOcean_roms/"
+  which_matlab="/usr/local/bin/matlab"
   
 fi
 
